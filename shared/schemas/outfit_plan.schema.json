@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wardrobe-styler/outfit_plan",
+  "$comment": "PLAN.md §5.6 Stage B response schema. Sent to Gemini as the structured-output schema and used as the contract test fixture between gateway and app.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outfits", "anchor_honored", "anchor_reason"],
+  "properties": {
+    "outfits": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slots", "rationale", "weather_fit", "formality", "palette", "layering_note", "confidence"],
+        "properties": {
+          "slots": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["slot", "item_id", "reason"],
+              "properties": {
+                "slot": { "type": "string", "enum": ["one_piece", "top", "base_layer", "mid_layer", "outerwear", "bottom", "shoes", "bag", "jewelry", "accessory"] },
+                "item_id": { "type": "string" },
+                "reason": { "type": "string", "maxLength": 60 }
+              }
+            }
+          },
+          "rationale": { "type": "string", "maxLength": 160 },
+          "weather_fit": { "type": "string", "enum": ["good", "acceptable", "poor"] },
+          "formality": { "type": "string", "enum": ["casual", "smart_casual", "business", "formal", "athletic"] },
+          "palette": { "type": "array", "items": { "type": "string" } },
+          "layering_note": { "type": ["string", "null"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "anchor_honored": { "type": "boolean" },
+    "anchor_reason": { "type": ["string", "null"] }
+  }
+}

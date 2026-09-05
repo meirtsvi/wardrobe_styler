@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+dist/
+coverage/
+*.log
+
+# Swift / Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Firebase / GCP
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.local.json
+.env
+.env.*
+!.env.example
+service-account*.json
+
+# Secrets
+*.p8
+*.p12
+*.mobileprovision

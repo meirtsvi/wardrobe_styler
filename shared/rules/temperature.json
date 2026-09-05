@@ -1,0 +1,67 @@
+{
+  "$comment": "PLAN.md §5.6 'Temperature and layering rules — one table, one source'. Thresholds live here only. The Stage B prompt renders this file as text; the server validator and its Swift client mirror execute it by rule id. Structural rules (one_piece vs top/bottom, base_layer under a top with layer_role single|mid, shoes present, anchor) are code in both validators. Temperatures are feels-like °C over the wear window; precip is the max hourly probability in percent.",
+  "version": 1,
+  "bands": [
+    { "name": "cold", "max_c": 8 },
+    { "name": "cool", "min_c": 8, "max_c": 15 },
+    { "name": "mild", "min_c": 15, "max_c": 22 },
+    { "name": "warm", "min_c": 22, "max_c": 28 },
+    { "name": "hot", "min_c": 28 }
+  ],
+  "layering_note_required_when_bands_differ": true,
+  "rules": {
+    "outerwear_required": {
+      "slot": "outerwear",
+      "kind": "required",
+      "min_feels_like_lt_c": 8,
+      "or_precip": { "precip_prob_max_gte_pct": 60, "min_feels_like_lt_c": 15 },
+      "text": "outerwear is required when the minimum feels-like is below 8 °C, or when rain probability is at least 60 % and the minimum is below 15 °C"
+    },
+    "outerwear_allowed": {
+      "slot": "outerwear",
+      "kind": "allowed",
+      "min_feels_like_lt_c": 18,
+      "or_occasion_in": ["formal", "evening"],
+      "text": "outerwear is allowed when the minimum feels-like is below 18 °C, or for formal and evening occasions"
+    },
+    "outerwear_forbidden": {
+      "slot": "outerwear",
+      "kind": "forbidden",
+      "max_feels_like_gte_c": 24,
+      "unless_item_warmth": "light",
+      "text": "outerwear is forbidden when the maximum feels-like is 24 °C or more, unless the piece is light (linen blazer, trench)"
+    },
+    "mid_layer_allowed": {
+      "slot": "mid_layer",
+      "kind": "allowed",
+      "min_feels_like_lt_c": 22,
+      "text": "a mid layer is allowed only when the minimum feels-like is below 22 °C"
+    },
+    "base_layer_allowed_by_temperature": {
+      "slot": "base_layer",
+      "kind": "allowed",
+      "min_feels_like_lt_c": 12,
+      "text": "a base layer under a top is allowed when the minimum feels-like is below 12 °C, or when the top's layer_role is single or mid and the base has layer_role base; never with a one-piece"
+    },
+    "heavy_warmth_forbidden": {
+      "warmth": "heavy",
+      "kind": "forbidden",
+      "max_feels_like_gt_c": 15,
+      "text": "heavy-warmth pieces (any slot) are forbidden when the maximum feels-like is above 15 °C"
+    },
+    "light_only_forbidden": {
+      "kind": "forbidden",
+      "all_items_warmth": "light",
+      "min_feels_like_lt_c": 8,
+      "text": "an outfit made only of light-warmth pieces is forbidden when the minimum feels-like is below 8 °C"
+    },
+    "open_shoes_allowed": {
+      "slot": "shoes",
+      "subcategories": ["sandals", "flip_flops", "slides", "mules_open"],
+      "kind": "allowed",
+      "min_feels_like_gte_c": 15,
+      "precip_prob_max_lt_pct": 40,
+      "text": "open shoes and sandals are allowed only when the minimum feels-like is 15 °C or more and rain probability is below 40 %"
+    }
+  }
+}
