@@ -14,6 +14,7 @@ struct TodayView: View {
     @State private var outcome: PlanOutcome?
     @State private var shown = 0
     @State private var planning = false
+    @State private var lookFor: PlannedOutfit?
 
     var body: some View {
         NavigationStack {
@@ -25,6 +26,8 @@ struct TodayView: View {
                         HStack {
                             Button("Another look") { shown = (shown + 1) % max(1, outcome.outfits.count); if outcome.outfits.count == 1 { Task { await plan() } } }
                             Spacer()
+                            Button { lookFor = outcome.outfits[min(shown, outcome.outfits.count - 1)].outfit } label: { Label("See it on me", systemImage: "person.crop.rectangle") }
+                            Spacer()
                             Text(plannerLabel(outcome)).font(.caption).foregroundStyle(.secondary)
                         }
                     } else if outcome != nil {
@@ -34,6 +37,7 @@ struct TodayView: View {
                 .padding()
             }
             .navigationTitle("Today")
+            .sheet(item: $lookFor) { o in LookSheet(outfit: o, records: records) }
             .task { if outcome == nil, !records.isEmpty { await plan() } }
         }
     }
@@ -126,4 +130,8 @@ enum RecentOutfits {
         let cutoff = Date().addingTimeInterval(-14 * 86_400)
         return all.filter { $0.at > cutoff }
     }
+}
+
+extension PlannedOutfit: @retroactive Identifiable {
+    public var id: String { slots.map(\.itemId).joined(separator: "+") }
 }

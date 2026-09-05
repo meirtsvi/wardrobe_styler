@@ -1,13 +1,22 @@
 // Prompt registry (PLAN §7.2 "Prompt registry & evals", §5.19, §5.6 Stage B). Versioned templates; Remote Config pins the active version.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderTemperatureRulesText } from "../domain/temperature.js";
 import { taxonomy } from "../domain/taxonomy.js";
 import type { Candidate, PlanContext } from "../domain/types.js";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const sharedPrompts = join(here, "..", "..", "..", "shared", "prompts");
+/** Finds the repo's shared/prompts from either src/ or dist/ (tsc does not copy .md files). */
+function findSharedPrompts(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, "shared", "prompts");
+    if (existsSync(candidate)) return candidate;
+    dir = dirname(dir);
+  }
+  throw new Error("shared/prompts not found above " + import.meta.url);
+}
+const sharedPrompts = findSharedPrompts();
 
 export type PromptVersion = { name: string; version: number; template: string; model_default: string; config: Record<string, unknown> };
 

@@ -1,30 +1,30 @@
-// Cloud Run entry point for ai-gateway. Firebase Admin uses ADC on Cloud Run; locally point FIRESTORE_EMULATOR_HOST at the emulator.
-import { getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { FirebaseVerifier, StaticVerifier } from "./gateway/auth.js";
-import { buildServer } from "./gateway/server.js";
+// Entry point for the personal gateway on the Mac mini (ADR 0002). `npm start` after filling backend/.env.
+import { randomBytes } from "node:crypto";
+import { loadConfig } from "./config.js";
 import { GeminiClient } from "./gemini/client.js";
-import { GeminiPlanner } from "./planner/geminiPlanner.js";
-import { CombinerPlanner } from "./planner/planOutfits.js";
-import remoteConfig from "../../shared/config/remote_config.defaults.json" with { type: "json" };
+import { ImageGenerator } from "./gemini/images.js";
+import { buildServer } from "./server.js";
+import { UsageLog } from "./usage.js";
+import { GoogleGenAI } from "@google/genai";
 
-if (getApps().length === 0) initializeApp();
+const cfg = loadConfig();
+if (!cfg.gatewayToken) {
+  console.error(`GATEWAY_TOKEN is not set. Add this to backend/.env:\nGATEWAY_TOKEN=${randomBytes(32).toString("hex")}`);
+  process.exit(1);
+}
+if (!cfg.geminiApiKey) console.warn("GEMINI_API_KEY not set: planning falls back to rules; attributes, looks and cleanup return 503.");
 
-const useStaticAuth = process.env.GATEWAY_STATIC_AUTH === "1" && process.env.NODE_ENV !== "production";
-if (useStaticAuth) console.warn("GATEWAY_STATIC_AUTH=1: static verifier in use (dev only)");
-
-// GEMINI_API_KEY is injected from Secret Manager on Cloud Run (PLAN §7.1); without it the gateway plans with rules only and
-// reports attribute analysis as unavailable. Model ids come from Remote Config defaults until the Remote Config client is wired.
-const apiKey = process.env.GEMINI_API_KEY;
-const gemini = apiKey ? GeminiClient.fromApiKey(apiKey) : undefined;
-if (!gemini) console.warn("GEMINI_API_KEY not set: rule-only planner, no attribute fallback");
+const ai = cfg.geminiApiKey ? new GoogleGenAI({ apiKey: cfg.geminiApiKey }) : undefined;
+const generate = ai ? (p: Parameters<typeof ai.models.generateContent>[0]) => ai.models.generateContent(p) : undefined;
 
 const app = buildServer({
-  db: getFirestore(),
-  verifier: useStaticAuth ? new StaticVerifier() : new FirebaseVerifier(),
-  planner: gemini ? new GeminiPlanner(gemini, { model: remoteConfig.models.plan }) : new CombinerPlanner(),
-  ...(gemini ? { gemini: { client: gemini, models: { bulk: remoteConfig.models.attributes_bulk, accurate: remoteConfig.models.attributes_accurate } } } : {}),
+  token: cfg.gatewayToken,
+  dailyBudgetUsd: cfg.dailyBudgetUsd,
+  usage: new UsageLog(cfg.dataDir),
+  models: cfg.models,
+  ...(generate ? { gemini: new GeminiClient(generate), images: new ImageGenerator(generate) } : {}),
 });
 
-const port = Number(process.env.PORT ?? 8080);
-app.listen({ port, host: "0.0.0.0" }).then(() => console.log(`ai-gateway listening on ${port}`));
+app.listen({ port: cfg.port, host: "127.0.0.1" }).then(() => {
+  console.log(`gateway listening on http://127.0.0.1:${cfg.port}  (gemini: ${!!ai}, budget: $${cfg.dailyBudgetUsd}/day)`);
+});

@@ -1,4 +1,4 @@
-// App-wide services (PLAN §6 MVVM with @Observable). Local planner first, gateway second, combiner last (ADR 0001).
+// App-wide services (PLAN §6 MVVM with @Observable). Local planner first, the Mac gateway second, combiner last (ADR 0001, 0002).
 import Digitize
 import Domain
 import Foundation
@@ -10,38 +10,65 @@ import SwiftUI
 final class AppModel {
     let container: ModelContainer
     let digitizer = GarmentDigitizer()
-    let orchestrator: PlanOrchestrator
+    var settings = GatewaySettings.load() { didSet { settings.save(); rebuild() } }
+    private(set) var orchestrator: PlanOrchestrator
+    private(set) var gateway: GatewayClient?
     var localPlannerStatus: PlannerAvailability = .unavailable(reason: "checking")
-    var gatewayConfigured: Bool
+    var gatewayHealth: HealthResponse?
+    var usage: UsageResponse?
 
-    /// Set `GATEWAY_URL` in the scheme environment to enable the Gemini fallback; without it the app is fully offline.
     init(container: ModelContainer) {
         self.container = container
-        var planners: [any OutfitPlanner] = [LocalPlanner()]
-        if let urlString = ProcessInfo.processInfo.environment["GATEWAY_URL"], let url = URL(string: urlString) {
-            planners.append(GatewayPlanner(client: GatewayClient(baseURL: url, tokens: DevTokens())))
-            gatewayConfigured = true
-        } else {
-            gatewayConfigured = false
-        }
-        orchestrator = PlanOrchestrator(planners: planners)
+        let s = GatewaySettings.load()
+        self.gateway = s.client
+        self.orchestrator = PlanOrchestrator(planners: [LocalPlanner()] + (s.client.map { [GatewayPlanner(client: $0)] } ?? []))
         Task { await refreshLocalPlannerStatus() }
     }
 
-    func refreshLocalPlannerStatus() async {
-        localPlannerStatus = await LocalPlanner().availability()
+    private func rebuild() {
+        gateway = settings.client
+        orchestrator = PlanOrchestrator(planners: [LocalPlanner()] + (gateway.map { [GatewayPlanner(client: $0)] } ?? []))
+        gatewayHealth = nil; usage = nil
+    }
+
+    func refreshLocalPlannerStatus() async { localPlannerStatus = await LocalPlanner().availability() }
+
+    func testGateway() async -> String {
+        guard let gateway else { return "No gateway configured." }
+        do {
+            gatewayHealth = try await gateway.health()
+            usage = try await gateway.usage()
+            let h = gatewayHealth!
+            return "Connected. Gemini \(h.gemini ? "on" : "off"), images \(h.images ? "on" : "off"). Spent today $\(String(format: "%.2f", usage?.spent_today_usd ?? 0)) of $\(String(format: "%.2f", usage?.daily_budget_usd ?? 0))."
+        } catch {
+            gatewayHealth = nil
+            return "Failed: \(error.localizedDescription)"
+        }
     }
 }
 
-/// Development tokens matching the gateway's StaticVerifier (GATEWAY_STATIC_AUTH=1). Firebase Auth + App Check replace this in Phase 3.
-struct DevTokens: TokenProvider {
-    func idToken() async throws -> String { "uid:dev-\(DevTokens.deviceId)" }
-    func appCheckToken(limitedUse: Bool) async throws -> String { "dev" }
-    static let deviceId: String = {
-        let key = "dev.device.id"
-        if let v = UserDefaults.standard.string(forKey: key) { return v }
-        let v = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(v, forKey: key)
-        return v
-    }()
+/// Gateway URL + token from the app's Settings (ADR 0002: a quick-tunnel URL that changes per run). Stored in UserDefaults on this personal build.
+struct GatewaySettings: Equatable {
+    var urlString: String = ""
+    var token: String = ""
+
+    var client: GatewayClient? {
+        guard let url = URL(string: urlString.trimmingCharacters(in: .whitespaces)), url.scheme?.hasPrefix("http") == true, !token.isEmpty else { return nil }
+        return GatewayClient(baseURL: url, token: token)
+    }
+
+    static func load() -> GatewaySettings {
+        let d = UserDefaults.standard
+        var s = GatewaySettings(urlString: d.string(forKey: "gateway.url") ?? "", token: d.string(forKey: "gateway.token") ?? "")
+        // Dev convenience: scheme environment overrides.
+        let env = ProcessInfo.processInfo.environment
+        if let u = env["GATEWAY_URL"], !u.isEmpty { s.urlString = u }
+        if let t = env["GATEWAY_TOKEN"], !t.isEmpty { s.token = t }
+        return s
+    }
+
+    func save() {
+        UserDefaults.standard.set(urlString, forKey: "gateway.url")
+        UserDefaults.standard.set(token, forKey: "gateway.token")
+    }
 }

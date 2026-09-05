@@ -1,6 +1,7 @@
 // Wardrobe grid + PhotosPicker digitisation (PLAN §4.3, §4.4; ADR 0001 on-device pipeline).
 import Digitize
 import Domain
+import OnDeviceAI
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -79,8 +80,11 @@ struct WardrobeView: View {
                     record.cutoutJPEG = ImagePrep.jpeg(g.cutout, quality: 0.85)
                     record.thumbnailJPEG = ImagePrep.jpeg(g.thumbnail, quality: 0.8)
                     record.attributesSource = g.needsCloudAttributes ? "device_partial" : "device"
+                    if g.needsCloudAttributes, let gateway = app.gateway, let cutout = record.cutoutJPEG {
+                        await nameWithGemini(record, gateway: gateway, cutout: cutout, label: g.categoryGuess?.label)
+                    }
                     // PLAN §4.3: high-confidence items commit automatically; doubtful ones wait in the review queue.
-                    record.status = (!g.needsCloudAttributes && record.categoryConfidence >= 0.8) ? "auto" : "new"
+                    record.status = record.categoryConfidence >= 0.8 && record.attributesSource != "device_partial" ? "auto" : "new"
                     context.insert(record)
                 }
                 try context.save()
@@ -88,6 +92,28 @@ struct WardrobeView: View {
                 lastError = String(describing: error)
             }
             progress = (i + 1, batch.count)
+        }
+    }
+}
+
+extension WardrobeView {
+    /// ADR 0001: Gemini names garments the device classifier cannot; colour stays the measured pixels.
+    func nameWithGemini(_ record: ItemRecord, gateway: GatewayClient, cutout: Data, label: String?) async {
+        do {
+            let r = try await gateway.attributes(cutout: InlineImage(mimeType: "image/jpeg", data: cutout), primaryHex: record.colorHex, primaryName: record.colorName,
+                                                 secondaryHex: record.secondaryHex, detectionLabel: label)
+            let a = r.attributes
+            if let cat = Domain.Category(rawValue: a.category) {
+                record.category = cat.rawValue
+                record.subcategory = (Taxonomy.shared.subcategories[cat.rawValue] ?? []).contains(a.subcategory) ? a.subcategory : (Taxonomy.shared.subcategories[cat.rawValue]?.first ?? "other")
+                record.layerRole = a.layer_role ?? Taxonomy.shared.defaultLayerRole(category: cat, subcategory: record.subcategory)?.rawValue
+            }
+            record.pattern = a.pattern; record.material = a.material; record.fit = a.fit; record.warmth = a.warmth
+            record.season = a.season; record.formality = a.formality; record.occasions = a.occasions; record.caption = a.caption
+            record.categoryConfidence = a.field_confidences["category"] ?? 0.7
+            record.attributesSource = "gemini"
+        } catch {
+            lastError = "Gemini naming failed: \(error.localizedDescription)"
         }
     }
 }

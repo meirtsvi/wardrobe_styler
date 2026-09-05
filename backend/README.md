@@ -1,32 +1,24 @@
-# backend
+# backend — personal gateway
 
-`ai-gateway` (Cloud Run, TypeScript). PLAN §7. The worker (`image-worker`) is merged into this service until ~10k MAU (§7.1).
+Runs on the Mac mini (ADR 0002). One process, one bearer token, Gemini behind a daily budget, no database. `scripts/run-mac.sh` starts it with a Cloudflare quick tunnel.
 
-## Layout
-
-| Path | Plan | What |
+| Endpoint | What | Gemini model (`.env` override) |
 |---|---|---|
-| `src/domain/` | §5.4, §5.6 | Stage A retrieval + scoring, validator, combiner, colour maths. Pure; no I/O. |
-| `src/planner/planOutfits.ts` | §5.6 | Stage A → Planner → validator → one repair → combiner fallback. `Planner` is an interface; `CombinerPlanner` is the rule-only implementation. The Gemini planner is Phase 2. |
-| `src/ledger/credits.ts` | §7.2, §9.2 | Two-bucket credit arithmetic (grant → purchased, refund, revoke, rollover, daily cap). |
-| `src/jobs/createJob.ts` | §7.2 | Idempotent job creation in one Firestore transaction: key check → debit → `jobs/{id}` → `credit_ledger`. Job id = idempotency key = future Cloud Tasks task name. |
-| `src/gateway/` | §7.2, §7.6 | Fastify server: auth (ID token + App Check, consumed on debit endpoints), `/v1/me`, `/v1/jobs`, `/v1/jobs/:id[/cancel]`, `/v1/outfits/plan`. |
-| `src/prompts/registry.ts` | §5.19, §7.2 | Persona block, Stage B system prompt (renders `shared/rules/temperature.json`), structured user content. |
-| `firestore.rules`, `storage.rules`, `firestore.indexes.json` | §7.4, §7.5 | Per-uid rules; server-only collections and fields. |
+| `GET /healthz` | liveness, whether a key is configured | — |
+| `GET /v1/usage` | today's estimated spend vs `DAILY_BUDGET_USD` | — |
+| `POST /v1/outfits/plan` | Stage B from client candidates; rules-only when no key | `GEMINI_PLAN_MODEL` |
+| `POST /v1/items/attributes` | name a garment cutout the device could not | `GEMINI_ATTRIBUTES_MODEL` / `_ACCURATE_MODEL` |
+| `POST /v1/looks` | try-on: your photo + ≤ 4 cutouts → one image | `GEMINI_IMAGE_MODEL` |
+| `POST /v1/images/cleanup` | put a cutout on a clean white background | `GEMINI_IMAGE_LITE_MODEL` |
 
-## Commands
+Usage is appended to `backend/data/usage.jsonl` (git-ignored) and costed from `shared/config/price_table.v1.json`; once the budget is reached every Gemini endpoint answers 429 until local midnight.
 
 ```sh
+cp .env.example .env    # GEMINI_API_KEY, GATEWAY_TOKEN (openssl rand -hex 32)
 npm install
-npm run typecheck
-npm test                 # pure unit tests
-npm run test:emulator    # Firestore emulator (needs Java) — ledger, jobs, gateway contract tests
-npm run emulators        # start Firestore/Auth/Storage emulators for local app work
-GATEWAY_STATIC_AUTH=1 FIRESTORE_EMULATOR_HOST=localhost:8080 node --import tsx src/index.ts   # dev server (install tsx first)
+npm run probe-models    # lists models visible to the key and checks the configured ids
+npm start               # http://127.0.0.1:8787
+npm test
 ```
 
-Docker: `docker build -f backend/Dockerfile .` from the repo root.
-
-## Not yet built (Phase 0 remainder, §11.1)
-
-Cloud Tasks enqueue (task name = idempotency key) and queue sizing; per-user sliding-window rate limits; `price_table` costing of `usage_log` and the reconciliation job; budget ladder endpoint; RevenueCat webhook; account merge/delete; weather snapshot cache; the Gemini adapter (`@google/genai`) with retries/Flex fallback; promptfoo eval harness; 100-concurrent mock load test; the Firestore vector index (`gcloud firestore indexes composite create --collection-group=items --query-scope=COLLECTION --field-config=vector-config='{"dimension":"768","flat":"{}"}',field-path=embedding --field-config=order=ASCENDING,field-path=uid`).
+Layout: `src/domain/` (Stage A, validator, combiner, colour), `src/planner/` (orchestration + Gemini planner), `src/gemini/` (client with retries/Flex fallback, image generation), `src/gateway/attributes.ts`, `src/server.ts`, `src/usage.ts`, `src/probeModels.ts`.
