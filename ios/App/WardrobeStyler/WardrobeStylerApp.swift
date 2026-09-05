@@ -16,6 +16,7 @@ struct WardrobeStylerApp: App {
         WindowGroup {
             RootView()
                 .environment(AppModel(container: container))
+                .onAppear { DemoSeed.seedIfEmpty(container.mainContext) }
         }
         .modelContainer(container)
     }

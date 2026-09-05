@@ -92,6 +92,19 @@ struct Boom: Error {}
         #expect(s.contains("work: business or smart_casual"))
     }
 
+    @Test func stalledPlannerIsSkippedAfterTheTimeout() async {
+        struct Sleeper: OutfitPlanner {
+            let name = "sleeper"
+            func availability() async -> PlannerAvailability { .available }
+            func plan(_ call: PlannerCall) async throws -> PlanResponse { try await Task.sleep(for: .seconds(5)); return PlanResponse(outfits: [], anchorHonored: true, anchorReason: nil) }
+        }
+        let start = ContinuousClock.now
+        let out = await PlanOrchestrator(planners: [Sleeper()], planTimeout: .milliseconds(200)).plan(items: Self.closet(), context: Self.ctx, inputs: Self.inputs)
+        #expect(ContinuousClock.now - start < .seconds(2))
+        #expect(out.outfits.first?.fallback == true)
+        #expect(out.calls.isEmpty)
+    }
+
     @Test func localPlannerReportsAvailabilityWithoutCrashing() async {
         // On CI/macOS without Apple Intelligence this is .unavailable; on a provisioned device it is .available. Either is fine.
         let a = await LocalPlanner().availability()

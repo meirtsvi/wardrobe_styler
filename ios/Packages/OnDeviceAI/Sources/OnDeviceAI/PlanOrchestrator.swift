@@ -27,9 +27,14 @@ public struct PlanOrchestrator: Sendable {
     private let combiner: Combiner
     /// Tried in order: e.g. [LocalPlanner, GatewayPlanner]. Each gets one plan call and one repair call.
     private let planners: [any OutfitPlanner]
+    /// A stalled model must never hold the card (PLAN §4.5 "another look" p50 ≤ 4 s; the simulator showed a 20 s Foundation Models stall).
+    private let availabilityTimeout: Duration
+    private let planTimeout: Duration
 
-    public init(planners: [any OutfitPlanner], stageA: StageA = StageA(), validator: OutfitValidator = OutfitValidator(), combiner: Combiner = Combiner()) {
+    public init(planners: [any OutfitPlanner], stageA: StageA = StageA(), validator: OutfitValidator = OutfitValidator(), combiner: Combiner = Combiner(),
+                availabilityTimeout: Duration = .seconds(3), planTimeout: Duration = .seconds(12)) {
         self.planners = planners; self.stageA = stageA; self.validator = validator; self.combiner = combiner
+        self.availabilityTimeout = availabilityTimeout; self.planTimeout = planTimeout
     }
 
     public func plan(items: [WardrobeItem], context ctx: PlanContext, inputs: StageAInputs, n: Int = 3,
@@ -41,9 +46,10 @@ public struct PlanOrchestrator: Sendable {
         var anchorReason: String? = nil
 
         for planner in planners {
-            guard await planner.availability() == .available else { continue }
-            var call = PlannerCall(candidates: candidates, context: ctx, n: n, city: city, learnedRules: learnedRules)
-            guard let first = try? await planner.plan(call) else { continue }
+            let available = (try? await withTimeout(availabilityTimeout) { await planner.availability() }) ?? .unavailable(reason: "availability timeout")
+            guard available == .available else { continue }
+            let call = PlannerCall(candidates: candidates, context: ctx, n: n, city: city, learnedRules: learnedRules)
+            guard let first = try? await withTimeout(planTimeout, { try await planner.plan(call) }) else { continue }
             calls[planner.name, default: 0] += 1
             anchorReason = first.anchorReason
 
@@ -53,9 +59,11 @@ public struct PlanOrchestrator: Sendable {
             }
             let violations = attempt.enumerated().filter { !$0.element.passed }.map { PlannerViolation(index: $0.offset, rulesFailed: $0.element.rulesFailed) }
             if !violations.isEmpty {
-                call.violations = violations
-                call.previousOutfits = first.outfits
-                if let repaired = try? await planner.plan(call) {
+                var repairCall = call
+                repairCall.violations = violations
+                repairCall.previousOutfits = first.outfits
+                let repairRequest = repairCall
+                if let repaired = try? await withTimeout(planTimeout, { try await planner.plan(repairRequest) }) {
                     calls[planner.name, default: 0] += 1
                     for v in violations where v.index < repaired.outfits.count {
                         let o = repaired.outfits[v.index]
@@ -76,5 +84,18 @@ public struct PlanOrchestrator: Sendable {
         let anchorHonored = ctx.anchorId.map { id in results.contains { $0.outfit.slots.contains { $0.itemId == id } } } ?? true
         return PlanOutcome(outfits: Array(results.prefix(n)), candidates: candidates, anchorHonored: anchorHonored,
                            anchorReason: anchorHonored ? nil : (anchorReason ?? "anchor could not be placed"), calls: calls)
+    }
+}
+
+public struct PlannerTimeout: Error, Equatable, Sendable {}
+
+/// Runs `operation` and throws PlannerTimeout if it does not finish within `limit`; the operation task is cancelled.
+public func withTimeout<T: Sendable>(_ limit: Duration, _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask { try await Task.sleep(for: limit); throw PlannerTimeout() }
+        guard let first = try await group.next() else { throw PlannerTimeout() }
+        group.cancelAll()
+        return first
     }
 }

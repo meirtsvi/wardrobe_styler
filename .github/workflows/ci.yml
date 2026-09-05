@@ -30,3 +30,12 @@ jobs:
       - run: swift --version
       - run: swift test
         working-directory: ios/Packages/Domain
+      - run: swift test
+        working-directory: ios/Packages/OnDeviceAI
+      - run: swift test
+        working-directory: ios/Packages/Digitize
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios
+      - run: xcodebuild -project WardrobeStyler.xcodeproj -scheme WardrobeStyler -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        working-directory: ios
