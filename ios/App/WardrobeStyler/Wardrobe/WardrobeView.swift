@@ -12,6 +12,8 @@ struct WardrobeView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<ItemRecord> { $0.deletedAt == nil }, sort: \ItemRecord.createdAt, order: .reverse) private var items: [ItemRecord]
     @State private var picked: [PhotosPickerItem] = []
+    @State private var showLibrary = false
+    @State private var showCamera = false
     @State private var progress: (done: Int, total: Int)?
     @State private var lastError: String?
 
@@ -43,8 +45,18 @@ struct WardrobeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    PhotosPicker(selection: $picked, maxSelectionCount: 50, matching: .images) { Label("Add", systemImage: "plus") }
+                    Menu {
+                        Button { showLibrary = true } label: { Label("Choose from Library", systemImage: "photo.on.rectangle") }
+                        if CameraPicker.isAvailable {
+                            Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
+                        }
+                    } label: { Label("Add", systemImage: "plus") }
                 }
+            }
+            .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 50, matching: .images)
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker { image in Task { await ingestCaptured(image) } }
+                    .ignoresSafeArea()
             }
             .overlay(alignment: .bottom) {
                 if let progress {
@@ -60,6 +72,13 @@ struct WardrobeView: View {
                 Task { await ingest(batch) }
             }
         }
+    }
+
+    private func ingestCaptured(_ image: UIImage) async {
+        progress = (0, 1)
+        defer { progress = nil }
+        do { try await Ingestor(app: app, context: context).ingest(image) } catch { lastError = error.localizedDescription }
+        progress = (1, 1)
     }
 
     private func ingest(_ batch: [PhotosPickerItem]) async {
