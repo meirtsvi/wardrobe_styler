@@ -1,0 +1,48 @@
+# XcodeGen spec (PLAN §6). Generate with `cd ios && xcodegen generate`; the .xcodeproj is not committed.
+name: WardrobeStyler
+options:
+  bundleIdPrefix: com.meirtsvi
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.5"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  Domain:
+    path: Packages/Domain
+  OnDeviceAI:
+    path: Packages/OnDeviceAI
+  Digitize:
+    path: Packages/Digitize
+targets:
+  WardrobeStyler:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/WardrobeStyler
+    dependencies:
+      - package: Domain
+      - package: OnDeviceAI
+      - package: Digitize
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.meirtsvi.wardrobestyler
+        INFOPLIST_FILE: App/WardrobeStyler/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: NO
+schemes:
+  WardrobeStyler:
+    build:
+      targets:
+        WardrobeStyler: all
+    run:
+      config: Debug
