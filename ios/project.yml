@@ -28,10 +28,15 @@ targets:
     platform: iOS
     sources:
       - path: App/WardrobeStyler
+      - path: App/Shared
     dependencies:
       - package: Domain
       - package: OnDeviceAI
       - package: Digitize
+      - target: WardrobeStylerWidget
+        embed: true
+    entitlements:
+      path: App/WardrobeStyler/WardrobeStyler.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.meirtsvi.wardrobestyler
@@ -39,6 +44,22 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
         GENERATE_INFOPLIST_FILE: NO
+  WardrobeStylerWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: App/WardrobeStylerWidget
+      - path: App/Shared
+    entitlements:
+      path: App/WardrobeStylerWidget/WardrobeStylerWidget.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.meirtsvi.wardrobestyler.widget
+        INFOPLIST_FILE: App/WardrobeStylerWidget/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
 schemes:
   WardrobeStyler:
     build:

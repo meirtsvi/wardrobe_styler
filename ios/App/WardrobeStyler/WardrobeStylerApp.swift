@@ -53,5 +53,8 @@ struct RootView: View {
             Tab("Wardrobe", systemImage: "hanger", value: "wardrobe") { WardrobeView() }
             Tab("Me", systemImage: "person.crop.circle", value: "me") { MeView() }
         }
+        .onOpenURL { url in
+            if url.scheme == "wardrobestyler", let host = url.host(), ["today", "wardrobe", "me"].contains(host) { selection = host }
+        }
     }
 }

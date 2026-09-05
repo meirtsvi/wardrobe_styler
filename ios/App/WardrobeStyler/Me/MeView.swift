@@ -49,6 +49,7 @@ struct MeView: View {
                     }
                 }
                 Section("Wear history") {
+                    NavigationLink { CalendarView() } label: { Label("Calendar", systemImage: "calendar") }
                     if events.isEmpty { Text("Tap \"Wear this\" on the Today card to start the log.").font(.footnote).foregroundStyle(.secondary) }
                     ForEach(WearLog.grouped(Array(events.prefix(60))), id: \.day) { group in
                         VStack(alignment: .leading, spacing: 2) {

@@ -34,6 +34,17 @@
 	<string>Photograph your clothes to add them to your wardrobe.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used only to fetch the local forecast for today's outfit.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.meirtsvi.wardrobestyler</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wardrobestyler</string>
+			</array>
+		</dict>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

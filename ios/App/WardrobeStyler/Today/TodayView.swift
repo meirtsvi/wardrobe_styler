@@ -4,6 +4,7 @@ import OnDeviceAI
 import SwiftData
 import SwiftUI
 import UIKit
+import WidgetKit
 
 struct TodayView: View {
     @Environment(AppModel.self) private var app
@@ -105,7 +106,24 @@ struct TodayView: View {
             RecentOutfits.record(first.outfit.slots.map(\.itemId))
             let ids = Set(first.outfit.slots.map(\.itemId))
             for r in records where ids.contains(r.id) { r.lastSuggestedAt = Date() }
+            publishWidget(first.outfit)
         }
+    }
+
+    /// PLAN §6 "Widgets": the app writes the App Group cache and reloads the timeline; the widget never plans on its own.
+    private func publishWidget(_ outfit: PlannedOutfit) {
+        var thumbs: [String: Data] = [:]
+        let slots = outfit.slots.map { s -> TodayWidgetData.Slot in
+            let rec = records.first { $0.id == s.itemId }
+            var file: String? = nil
+            if let rec, let data = rec.displayThumbnail { file = "\(rec.id).jpg"; thumbs[file!] = data }
+            return TodayWidgetData.Slot(slot: s.slot.rawValue, name: rec?.displayName ?? s.itemId, thumbnailFile: file)
+        }
+        let w = weather.window
+        let data = TodayWidgetData(date: Date(), occasion: occasion.rawValue,
+                                   weatherLine: "\(Int(w.minFeelsLikeC.rounded()))° → \(Int(w.maxFeelsLikeC.rounded()))° · rain \(Int(w.precipProbMax))%",
+                                   rationale: outfit.rationale, layeringNote: outfit.layeringNote, slots: slots)
+        do { try WidgetStore.save(data, thumbnails: thumbs); WidgetCenter.shared.reloadTimelines(ofKind: WidgetStore.kind) } catch { print("[widget] \(error)") }
     }
 }
 
