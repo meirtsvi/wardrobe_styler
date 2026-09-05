@@ -10,6 +10,10 @@ public struct PlannedResult: Equatable, Sendable {
     public var fallback: Bool
     public var plannerName: String
     public var advisoryWarnings: [String]
+    public init(outfit: PlannedOutfit, passed: Bool, rulesFailed: [String], repaired: Bool, fallback: Bool, plannerName: String, advisoryWarnings: [String]) {
+        self.outfit = outfit; self.passed = passed; self.rulesFailed = rulesFailed; self.repaired = repaired
+        self.fallback = fallback; self.plannerName = plannerName; self.advisoryWarnings = advisoryWarnings
+    }
 }
 
 public struct PlanOutcome: Sendable {

@@ -10,6 +10,7 @@ struct WeatherState {
     var precip: Double = 10
     var city: String? = nil
     var source: String = "manual"
+    var weekWindows: [WearWindow] = []
     var window: WearWindow { WearWindow(minFeelsLikeC: minC, maxFeelsLikeC: maxC, precipProbMax: precip) }
 }
 
@@ -49,6 +50,7 @@ struct WeatherControls: View {
             let window = try await WearWindowProvider.window(at: loc)
             state.minC = window.minFeelsLikeC.rounded(); state.maxC = window.maxFeelsLikeC.rounded(); state.precip = window.precipProbMax
             state.city = await WearWindowProvider.city(at: loc)
+            state.weekWindows = (try? await WearWindowProvider.weekWindows(at: loc)) ?? []
             state.source = "weatherkit"
             error = nil
         } catch {
@@ -72,6 +74,14 @@ enum WearWindowProvider {
         let precip = hours.map { $0.precipitationChance * 100 }.max() ?? 0
         let wind = hours.map { $0.wind.speed.converted(to: .kilometersPerHour).value }.max()
         return WearWindow(minFeelsLikeC: temps.min()!, maxFeelsLikeC: temps.max()!, precipProbMax: precip, windMax: wind)
+    }
+
+    /// Daily high/low + precipitation chance for the next 7 days (WeatherKit daily forecast has no apparent temperature; use actual).
+    static func weekWindows(at location: CLLocation) async throws -> [WearWindow] {
+        let weather = try await WeatherService.shared.weather(for: location, including: .daily)
+        return weather.forecast.prefix(7).map { d in
+            WearWindow(minFeelsLikeC: d.lowTemperature.converted(to: .celsius).value, maxFeelsLikeC: d.highTemperature.converted(to: .celsius).value, precipProbMax: d.precipitationChance * 100)
+        }
     }
 
     static func city(at location: CLLocation) async -> String? {

@@ -88,6 +88,14 @@ public final class GatewayClient: Sendable {
         return try await request("POST", "/v1/looks", body: Body(person: person, garments: garments.map { Garment(image: $0.image, label: $0.label) }, image_size: imageSize, notes: notes), timeout: 180)
     }
 
+    /// Generative clean-up of a cutout background (PLAN §5.16). The wardrobe keeps the real-pixel cutout; the result is stored separately.
+    public func cleanup(cutout: InlineImage) async throws -> InlineImage {
+        struct Body: Encodable { var image: InlineImage }
+        struct Resp: Decodable { var image: InlineImage; var model: String }
+        let r: Resp = try await request("POST", "/v1/images/cleanup", body: Body(image: cutout), timeout: 120)
+        return r.image
+    }
+
     private func request<B: Encodable, R: Decodable>(_ method: String, _ path: String, body: B?, headers: [String: String] = [:], timeout: TimeInterval = 30) async throws -> R {
         var req = URLRequest(url: baseURL.appending(path: path), timeoutInterval: timeout)
         req.httpMethod = method

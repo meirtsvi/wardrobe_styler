@@ -44,7 +44,7 @@ struct LookSheet: View {
                         ScrollView(.horizontal) {
                             HStack {
                                 ForEach(garments) { g in
-                                    if let d = g.thumbnailJPEG, let ui = UIImage(data: d) { Image(uiImage: ui).resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 8)) }
+                                    if let d = g.displayThumbnail, let ui = UIImage(data: d) { Image(uiImage: ui).resizable().scaledToFit().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 8)) }
                                 }
                             }
                         }
@@ -71,7 +71,7 @@ struct LookSheet: View {
         defer { rendering = false }
         do {
             let inputs = garments.compactMap { g -> (image: InlineImage, label: String)? in
-                guard let d = g.cutoutJPEG else { return nil }
+                guard let d = g.displayCutout else { return nil }
                 return (InlineImage(mimeType: "image/jpeg", data: d), g.displayName)
             }
             let r = try await gateway.look(person: InlineImage(mimeType: "image/jpeg", data: personJPEG), garments: inputs)

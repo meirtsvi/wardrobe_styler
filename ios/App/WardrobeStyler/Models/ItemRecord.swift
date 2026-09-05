@@ -39,6 +39,12 @@ final class ItemRecord {
     var deletedAt: Date?
     @Attribute(.externalStorage) var cutoutJPEG: Data?
     @Attribute(.externalStorage) var thumbnailJPEG: Data?
+    /// Optional Gemini clean-up (PLAN §5.16): a generated image, kept beside the real-pixel cutout and shown only when `useCleaned`.
+    @Attribute(.externalStorage) var cleanedJPEG: Data?
+    var useCleaned: Bool = false
+
+    var displayCutout: Data? { useCleaned ? (cleanedJPEG ?? cutoutJPEG) : cutoutJPEG }
+    var displayThumbnail: Data? { useCleaned ? (cleanedJPEG ?? thumbnailJPEG) : thumbnailJPEG }
 
     init(id: String = UUID().uuidString, category: Domain.Category, subcategory: String, colorHex: String, colorName: String) {
         self.id = id

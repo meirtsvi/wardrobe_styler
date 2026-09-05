@@ -15,6 +15,10 @@ struct TodayView: View {
     @State private var shown = 0
     @State private var planning = false
     @State private var lookFor: PlannedOutfit?
+    @State private var week: [DayPlan] = []
+    @State private var selectedDay: DayPlan?
+    @State private var wornMessage: String?
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         NavigationStack {
@@ -22,16 +26,30 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     controls
                     if let outcome, !outcome.outfits.isEmpty {
-                        OutfitCard(result: outcome.outfits[min(shown, outcome.outfits.count - 1)], records: records, weather: weather.window)
+                        let current = outcome.outfits[min(shown, outcome.outfits.count - 1)]
+                        OutfitCard(result: current, records: records, weather: weather.window)
                         HStack {
                             Button("Another look") { shown = (shown + 1) % max(1, outcome.outfits.count); if outcome.outfits.count == 1 { Task { await plan() } } }
                             Spacer()
-                            Button { lookFor = outcome.outfits[min(shown, outcome.outfits.count - 1)].outfit } label: { Label("See it on me", systemImage: "person.crop.rectangle") }
+                            Button { lookFor = current.outfit } label: { Label("See it on me", systemImage: "person.crop.rectangle") }
                             Spacer()
                             Text(plannerLabel(outcome)).font(.caption).foregroundStyle(.secondary)
                         }
+                        HStack {
+                            Button { wear(current.outfit, laundry: false) } label: { Label("Wear this", systemImage: "checkmark.circle") }.buttonStyle(.bordered)
+                            Button { wear(current.outfit, laundry: true) } label: { Label("Wear → laundry", systemImage: "washer") }.buttonStyle(.bordered)
+                            Spacer()
+                        }
+                        if let wornMessage { Text(wornMessage).font(.caption).foregroundStyle(.secondary) }
                     } else if outcome != nil {
                         ContentUnavailableView("Nothing works today", systemImage: "cloud.rain", description: Text("Add shoes and a top or a dress that suit \(occasion.rawValue), or mark items as back from the laundry."))
+                    }
+                    if !week.isEmpty {
+                        WeekStrip(days: week, records: records, selected: $selectedDay)
+                        if let d = selectedDay, let o = d.outfit {
+                            Text(d.date.formatted(date: .complete, time: .omitted)).font(.subheadline).bold()
+                            OutfitCard(result: PlannedResult(outfit: o, passed: true, rulesFailed: [], repaired: false, fallback: true, plannerName: "combiner", advisoryWarnings: []), records: records, weather: d.window)
+                        }
                     }
                 }
                 .padding()
@@ -63,9 +81,22 @@ struct TodayView: View {
         return (r?.plannerName ?? "") + (r?.repaired == true ? " · repaired" : "")
     }
 
+    private func wear(_ outfit: PlannedOutfit, laundry: Bool) {
+        WearLog.wear(outfit, records: records, toLaundry: laundry, context: context)
+        wornMessage = laundry ? "Logged and sent the clothes to the laundry." : "Logged as worn today."
+        planWeek()
+    }
+
+    private func planWeek() {
+        let items = records.map(\.domainItem)
+        week = WeekPlanner.plan(items: items, occasion: occasion, windows: weather.weekWindows.isEmpty ? [weather.window] : weather.weekWindows, accessories: accessories, recent: RecentOutfits.load())
+        if let sel = selectedDay { selectedDay = week.first { $0.id == sel.id } }
+    }
+
     private func plan() async {
         planning = true
         defer { planning = false }
+        planWeek()
         let items = records.map(\.domainItem)
         let ctx = PlanContext(occasion: occasion, wearWindow: weather.window, accessoryCount: accessories, recentOutfits: RecentOutfits.load(), yesterdayItemIds: RecentOutfits.yesterday())
         outcome = await app.orchestrator.plan(items: items, context: ctx, inputs: StageAInputs(), n: 3, city: weather.city)
@@ -91,7 +122,7 @@ struct OutfitCard: View {
             if let note = result.outfit.layeringNote { Text(note).font(.subheadline) }
             ForEach(result.outfit.slots, id: \.itemId) { slot in
                 HStack(spacing: 12) {
-                    if let rec = records.first(where: { $0.id == slot.itemId }), let data = rec.thumbnailJPEG, let ui = UIImage(data: data) {
+                    if let rec = records.first(where: { $0.id == slot.itemId }), let data = rec.displayThumbnail, let ui = UIImage(data: data) {
                         Image(uiImage: ui).resizable().scaledToFit().frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 8))
                     } else {
                         RoundedRectangle(cornerRadius: 8).fill(.quaternary).frame(width: 56, height: 56)

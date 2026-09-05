@@ -7,6 +7,9 @@ import SwiftUI
 struct MeView: View {
     @Environment(AppModel.self) private var app
     @Query(filter: #Predicate<ItemRecord> { $0.deletedAt == nil }) private var records: [ItemRecord]
+    @Query(sort: \WornEvent.date, order: .reverse) private var events: [WornEvent]
+    @State private var exportURL: URL?
+    @State private var exportError: String?
     @State private var url = ""
     @State private var token = ""
     @State private var testResult: String?
@@ -45,6 +48,20 @@ struct MeView: View {
                         LabeledContent("Calls", value: "\(u.calls_today)")
                     }
                 }
+                Section("Wear history") {
+                    if events.isEmpty { Text("Tap \"Wear this\" on the Today card to start the log.").font(.footnote).foregroundStyle(.secondary) }
+                    ForEach(WearLog.grouped(Array(events.prefix(60))), id: \.day) { group in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(group.day.formatted(date: .abbreviated, time: .omitted)).font(.subheadline).bold()
+                            Text(group.events.map { e in records.first { $0.id == e.itemId }?.displayName ?? e.itemId }.joined(separator: ", ")).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Section("Your data") {
+                    Button { export() } label: { Label("Export wardrobe (ZIP)", systemImage: "square.and.arrow.up") }
+                    if let exportError { Text(exportError).font(.footnote).foregroundStyle(.red) }
+                    Text("Cutouts as JPEG, items.json, wear_log.csv. Everything the app knows, in plain files.").font(.footnote).foregroundStyle(.secondary)
+                }
                 Section {
                     Text("Photos stay on this phone except: a cutout sent to Gemini when the device cannot name it, and your own photo plus cutouts when you ask for a try-on. Colour is always measured from your photo.").font(.footnote).foregroundStyle(.secondary)
                 }
@@ -52,6 +69,13 @@ struct MeView: View {
             .navigationTitle("Me")
             .onAppear { url = app.settings.urlString; token = app.settings.token }
             .refreshable { await app.refreshLocalPlannerStatus() }
+            .sheet(item: $exportURL) { url in ShareSheet(url: url) }
         }
     }
+
+    private func export() {
+        do { exportURL = try Export.build(items: records, events: events); exportError = nil } catch { exportError = error.localizedDescription }
+    }
 }
+
+extension URL: @retroactive Identifiable { public var id: String { absoluteString } }

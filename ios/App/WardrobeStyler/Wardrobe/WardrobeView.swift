@@ -82,7 +82,7 @@ struct ItemTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topTrailing) {
-                if let data = item.thumbnailJPEG, let ui = UIImage(data: data) {
+                if let data = item.displayThumbnail, let ui = UIImage(data: data) {
                     Image(uiImage: ui).resizable().scaledToFit().frame(height: 120).clipShape(RoundedRectangle(cornerRadius: 10))
                 } else {
                     RoundedRectangle(cornerRadius: 10).fill(Color(hex: item.colorHex)).frame(height: 120)
