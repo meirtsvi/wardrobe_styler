@@ -10,6 +10,7 @@ struct WeatherState {
     var precip: Double = 10
     var city: String? = nil
     var source: String = "manual"
+    var forDay: Date? = nil
     var weekWindows: [WearWindow] = []
     var window: WearWindow { WearWindow(minFeelsLikeC: minC, maxFeelsLikeC: maxC, precipProbMax: precip) }
 }
@@ -22,7 +23,7 @@ struct WeatherControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(state.source == "manual" ? "Weather (manual)" : "Weather · \(state.city ?? "here")").font(.subheadline).foregroundStyle(.secondary)
+                Text(state.source == "manual" ? "Weather (manual)" : "Weather · \(state.city ?? "here")\(dayLabel)").font(.subheadline).foregroundStyle(.secondary)
                 Spacer()
                 Button(fetching ? "Fetching…" : "Use my location") { Task { await fetch() } }.font(.caption).disabled(fetching)
             }
@@ -42,6 +43,11 @@ struct WeatherControls: View {
         }
     }
 
+    private var dayLabel: String {
+        guard let d = state.forDay else { return "" }
+        return Calendar.current.isDateInToday(d) ? "" : " · tomorrow"
+    }
+
     private func fetch() async {
         fetching = true
         defer { fetching = false }
@@ -53,8 +59,9 @@ struct WeatherControls: View {
             return
         }
         do {
-            let window = try await WearWindowProvider.window(at: loc)
+            let (window, day) = try await WearWindowProvider.window(at: loc)
             state.minC = window.minFeelsLikeC.rounded(); state.maxC = window.maxFeelsLikeC.rounded(); state.precip = window.precipProbMax
+            state.forDay = day
             state.city = await WearWindowProvider.city(at: loc)
             state.weekWindows = (try? await WearWindowProvider.weekWindows(at: loc)) ?? []
             state.source = "weatherkit"
@@ -68,19 +75,27 @@ struct WeatherControls: View {
 
 enum WearWindowProvider {
     /// Wear window 07:00–20:00 local from the hourly forecast: min/max apparent temperature, max precipitation chance.
-    static func window(at location: CLLocation, start: Int = 7, end: Int = 20) async throws -> WearWindow {
+    /// The hourly forecast starts now, so in the evening (or with fewer than 3 hours left) the window is tomorrow's; `day` says which.
+    static func window(at location: CLLocation, start: Int = 7, end: Int = 20, now: Date = Date()) async throws -> (window: WearWindow, day: Date) {
         let weather = try await WeatherService.shared.weather(for: location, including: .hourly)
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let hours = weather.forecast.filter { h in
-            let hour = cal.component(.hour, from: h.date)
-            return cal.isDate(h.date, inSameDayAs: today) && hour >= start && hour <= end
+        func hours(on day: Date) -> [HourWeather] {
+            weather.forecast.filter { h in
+                let hour = cal.component(.hour, from: h.date)
+                return cal.isDate(h.date, inSameDayAs: day) && hour >= start && hour <= end
+            }
         }
-        guard !hours.isEmpty else { throw NSError(domain: "weather", code: 1, userInfo: [NSLocalizedDescriptionKey: "no hours in the wear window"]) }
-        let temps = hours.map { $0.apparentTemperature.converted(to: .celsius).value }
-        let precip = hours.map { $0.precipitationChance * 100 }.max() ?? 0
-        let wind = hours.map { $0.wind.speed.converted(to: .kilometersPerHour).value }.max()
-        return WearWindow(minFeelsLikeC: temps.min()!, maxFeelsLikeC: temps.max()!, precipProbMax: precip, windMax: wind)
+        let today = cal.startOfDay(for: now)
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: today)!
+        var day = today
+        var picked = hours(on: today)
+        if picked.count < 3 { day = tomorrow; picked = hours(on: tomorrow) }
+        if picked.isEmpty { day = today; picked = Array(weather.forecast.prefix(12)) } // whatever is next, rather than nothing
+        guard !picked.isEmpty else { throw NSError(domain: "weather", code: 1, userInfo: [NSLocalizedDescriptionKey: "no hourly forecast returned"]) }
+        let temps = picked.map { $0.apparentTemperature.converted(to: .celsius).value }
+        let precip = picked.map { $0.precipitationChance * 100 }.max() ?? 0
+        let wind = picked.map { $0.wind.speed.converted(to: .kilometersPerHour).value }.max()
+        return (WearWindow(minFeelsLikeC: temps.min()!, maxFeelsLikeC: temps.max()!, precipProbMax: precip, windMax: wind), day)
     }
 
     /// Daily high/low + precipitation chance for the next 7 days (WeatherKit daily forecast has no apparent temperature; use actual).
