@@ -57,6 +57,8 @@ export class JobError extends Error {
 }
 
 const IDEMPOTENCY_WINDOW_MS = 24 * 3600 * 1000;
+/** All of one user's debits contend on users/{uid}; the default 5 attempts abort legitimate requests under a burst (seen at 40 concurrent). */
+const TXN_OPTIONS = { maxAttempts: 30 };
 
 /** Next local midnight for an IANA timezone, as epoch ms. */
 export function nextLocalMidnight(nowMs: number, tz: string): number {
@@ -150,7 +152,7 @@ export async function createJob(db: Firestore, req: CreateJobInput, nowMs = Date
 
     tx.set(jobRef, job);
     return { job, created: true };
-  });
+  }, TXN_OPTIONS);
 }
 
 /** Terminal failure or cancel: refund in the same shape and buckets, once (PLAN §7.2 "Refund on terminal failure"). */
@@ -185,5 +187,5 @@ export async function refundJob(db: Firestore, jobId: string, reason: "refund" |
     }
     tx.update(jobRef, update);
     return { ...job, ...update };
-  });
+  }, TXN_OPTIONS);
 }

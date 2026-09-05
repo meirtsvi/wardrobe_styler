@@ -91,6 +91,9 @@ describe("createJob", () => {
       Array.from({ length: 40 }, (_, i) => createJob(db, { uid: "u6", type: "look", idempotencyKey: `c${i}`, queue: "q-tryon-free", input: {} }, now)),
     );
     const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected").map((r) => r.reason);
+    // Every failure must be a credit rejection, never a transaction abort (that would be a lost sale under a burst).
+    for (const f of failures) expect(f, String(f)).toBeInstanceOf(JobError);
     expect(ok).toBe(20);
     const user = (await db.collection("users").doc("u6").get()).data()!;
     expect(user.grant_balance.amount + user.purchased_balance).toBe(0);

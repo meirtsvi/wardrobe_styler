@@ -3,7 +3,8 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { fixtureCloset } from "../domain/fixtures.js";
+import { context, fixtureCloset } from "../domain/fixtures.js";
+import { stageA } from "../domain/stageA.js";
 import { CombinerPlanner } from "../planner/planOutfits.js";
 import { StaticVerifier } from "./auth.js";
 import { buildServer } from "./server.js";
@@ -88,22 +89,14 @@ describe("/v1/jobs", () => {
 });
 
 describe("/v1/outfits/plan", () => {
-  it("plans from the user's Firestore items and returns validated outfits with the wear window", async () => {
-    const batch = db.batch();
-    for (const it of fixtureCloset()) {
-      batch.set(db.collection("items").doc(it.id), {
-        uid: "u1", category: it.category, subcategory: it.subcategory, layer_role: it.layer_role,
-        colors: { primary_hex: it.color_hex, primary_name: it.color_name }, pattern: it.pattern, material: it.material,
-        warmth: it.warmth, season: it.season, formality: it.formality, owned: true, status: "confirmed",
-        availability: { state: it.id === "jeans-navy" ? "laundry" : "available" }, quantity: it.quantity, source: "photo",
-      });
-    }
-    await batch.commit();
+  it("plans from client candidates and returns validated outfits with the wear window", async () => {
+    const ctx = context({ wearWindow: { min_feels_like_c: 9, max_feels_like_c: 21, precip_prob_max: 10 } });
+    const cands = stageA(fixtureCloset().filter((i) => i.id !== "jeans-navy"), ctx);
     const r = await app.inject({
       method: "POST", url: "/v1/outfits/plan", headers: auth("u1"),
-      payload: { occasion: "casual", wear_window: { min_feels_like_c: 9, max_feels_like_c: 21, precip_prob_max: 10 } },
+      payload: { occasion: "casual", weather: { wear_window: ctx.wearWindow, city: "Tel Aviv" }, accessory_count: "some", candidates: cands },
     });
-    expect(r.statusCode).toBe(200);
+    expect(r.statusCode, r.body).toBe(200);
     const body = r.json();
     expect(body.outfits.length).toBeGreaterThanOrEqual(1);
     const o = body.outfits[0];
@@ -113,8 +106,15 @@ describe("/v1/outfits/plan", () => {
     expect(o.slots.map((s: { item_id: string }) => s.item_id)).not.toContain("jeans-navy");
     expect(body.weather.wear_window.min_feels_like_c).toBe(9);
   });
-  it("rejects an unknown occasion", async () => {
-    const r = await app.inject({ method: "POST", url: "/v1/outfits/plan", headers: auth("u1"), payload: { occasion: "wedding-crasher", wear_window: { min_feels_like_c: 9, max_feels_like_c: 21, precip_prob_max: 10 } } });
+  it("rejects an unknown occasion and an empty candidate list", async () => {
+    const w = { min_feels_like_c: 9, max_feels_like_c: 21, precip_prob_max: 10 };
+    const r = await app.inject({ method: "POST", url: "/v1/outfits/plan", headers: auth("u1"), payload: { occasion: "wedding-crasher", weather: { wear_window: w }, accessory_count: "some", candidates: [{ id: "x", category: "top", subcategory: "tee", color_hex: "#000000", color_name: "black", warmth: "mid", formality: "casual" }] } });
     expect(r.statusCode).toBe(400);
+    const empty = await app.inject({ method: "POST", url: "/v1/outfits/plan", headers: auth("u1"), payload: { occasion: "casual", weather: { wear_window: w }, accessory_count: "some", candidates: [] } });
+    expect(empty.statusCode).toBe(400);
+  });
+  it("attributes endpoint reports 503 when Gemini is not configured", async () => {
+    const r = await app.inject({ method: "POST", url: "/v1/items/attributes", headers: auth("u1"), payload: { image_base64: "AAAA", mime_type: "image/jpeg", pixel_palette: { primary_hex: "#000000", primary_name: "black" } } });
+    expect(r.statusCode).toBe(503);
   });
 });

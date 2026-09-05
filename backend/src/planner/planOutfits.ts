@@ -30,9 +30,13 @@ export type PlanOutcome = {
   calls: number;
 };
 
-/** Plan `n` outfits. Always returns at least one outfit when the closet can satisfy the rules (the card always renders). */
+/** Plan `n` outfits from a wardrobe (server-side Stage A). Always returns at least one outfit when the closet can satisfy the rules. */
 export async function planOutfits(planner: Planner, items: WardrobeItem[], ctx: PlanContext, n = 3): Promise<PlanOutcome> {
-  const candidates = stageA(items, ctx);
+  return planFromCandidates(planner, stageA(items, ctx), ctx, n);
+}
+
+/** Plan from a client-computed candidate list (ADR 0001: the device runs Stage A; the server never reads the wardrobe). */
+export async function planFromCandidates(planner: Planner, candidates: Candidate[], ctx: PlanContext, n = 3): Promise<PlanOutcome> {
   const byId = new Map(candidates.map((c) => [c.id, c]));
   let calls = 0;
 

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wardrobe-styler/attributes",
+  "$comment": "PLAN.md §5.3 attribute schema for the Gemini fallback when the device cannot settle a garment (ADR 0001). propertyOrdering follows the plan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "subcategory", "layer_role", "primary_color_name", "secondary_colors", "pattern", "material", "fit", "length", "warmth", "season", "formality", "occasions", "brand_guess", "brand_confidence", "field_confidences", "caption"],
+  "propertyOrdering": ["category", "subcategory", "layer_role", "primary_color_name", "secondary_colors", "pattern", "material", "fit", "length", "warmth", "season", "formality", "occasions", "brand_guess", "brand_confidence", "field_confidences", "caption"],
+  "properties": {
+    "category": { "type": "string", "enum": ["one_piece", "top", "mid_layer", "outerwear", "bottom", "shoes", "bag", "jewelry", "accessory", "swim", "underwear", "other"] },
+    "subcategory": { "type": "string" },
+    "layer_role": { "type": ["string", "null"], "enum": ["base", "single", "mid", "outer", null] },
+    "primary_color_name": { "type": "string" },
+    "secondary_colors": { "type": "array", "items": { "type": "string" } },
+    "pattern": { "type": "string", "enum": ["solid", "stripe", "check", "floral", "graphic", "animal", "dot", "abstract", "other"] },
+    "material": { "type": "string", "enum": ["cotton", "denim", "wool", "knit", "leather", "silk", "linen", "synthetic", "unknown"] },
+    "fit": { "type": "string", "enum": ["slim", "regular", "relaxed", "oversized"] },
+    "length": { "type": "string" },
+    "warmth": { "type": "string", "enum": ["light", "mid", "warm", "heavy"] },
+    "season": { "type": "array", "items": { "type": "string", "enum": ["spring", "summer", "autumn", "winter"] } },
+    "formality": { "type": "string", "enum": ["casual", "smart_casual", "business", "formal", "athletic"] },
+    "occasions": { "type": "array", "items": { "type": "string" } },
+    "brand_guess": { "type": ["string", "null"] },
+    "brand_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "field_confidences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "pattern", "material", "fit", "formality"],
+      "properties": {
+        "category": { "type": "number" }, "pattern": { "type": "number" }, "material": { "type": "number" }, "fit": { "type": "number" }, "formality": { "type": "number" }
+      }
+    },
+    "caption": { "type": "string", "maxLength": 120 }
+  }
+}
