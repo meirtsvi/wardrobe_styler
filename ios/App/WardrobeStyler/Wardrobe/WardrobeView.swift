@@ -1,4 +1,5 @@
 // Wardrobe grid + PhotosPicker digitisation (PLAN §4.3, §4.4; ADR 0001 on-device pipeline).
+import AVFoundation
 import Digitize
 import Domain
 import OnDeviceAI
@@ -47,7 +48,7 @@ struct WardrobeView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button { showLibrary = true } label: { Label("Choose from Library", systemImage: "photo.on.rectangle") }
-                        if CameraPicker.isAvailable {
+                        if AVCaptureDevice.default(for: .video) != nil {
                             Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
                         }
                     } label: { Label("Add", systemImage: "plus") }
@@ -55,8 +56,7 @@ struct WardrobeView: View {
             }
             .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 50, matching: .images)
             .fullScreenCover(isPresented: $showCamera) {
-                CameraPicker { image in Task { await ingestCaptured(image) } }
-                    .ignoresSafeArea()
+                GuidedCameraView { image in Task { await ingestCaptured(image) } }
             }
             .overlay(alignment: .bottom) {
                 if let progress {
