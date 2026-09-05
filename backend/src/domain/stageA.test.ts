@@ -3,7 +3,7 @@ import { context, fixtureCloset, item } from "./fixtures.js";
 import { coverageScore, feedbackTerm, passesHardFilters, stageA } from "./stageA.js";
 
 describe("stageA hard filters", () => {
-  it("never returns laundry, archived, unowned, deleted or wrong-season items", () => {
+  it("never returns laundry, archived, unowned or deleted items; review-queue and off-season items stay in", () => {
     const closet = [
       ...fixtureCloset(),
       item({ id: "laundry-tee", category: "top", subcategory: "tee", availability: "laundry" }),
@@ -13,8 +13,15 @@ describe("stageA hard filters", () => {
       item({ id: "gone", category: "top", subcategory: "tee", deleted: true }),
       item({ id: "summer-only", category: "top", subcategory: "tee", season: ["summer"] }),
     ];
-    const ids = stageA(closet, context({ calendarSeason: "autumn" })).map((c) => c.id);
-    for (const bad of ["laundry-tee", "archived", "new-unreviewed", "wishlist", "gone", "summer-only"]) expect(ids).not.toContain(bad);
+    const cands = stageA(closet, context({ calendarSeason: "autumn" }));
+    const ids = cands.map((c) => c.id);
+    for (const bad of ["laundry-tee", "archived", "wishlist", "gone"]) expect(ids).not.toContain(bad);
+    expect(ids).toContain("new-unreviewed");
+    expect(ids).toContain("summer-only");
+    // Off-season tag is a penalty, not a filter.
+    const summer = cands.find((c) => c.id === "summer-only")!;
+    const inSeason = cands.find((c) => c.id === "new-unreviewed")!;
+    expect(summer.score).toBeLessThan(inSeason.score);
   });
   it("forces an unowned anchor in", () => {
     const closet = [...fixtureCloset(), item({ id: "candidate-blazer", category: "outerwear", subcategory: "blazer", owned: false, warmth: "light" })];

@@ -13,10 +13,10 @@ public struct StageA: Sendable {
     public func passesHardFilters(_ item: WardrobeItem, ctx: PlanContext, inputs: StageAInputs, realCountInCategory: Int) -> Bool {
         if item.id == ctx.anchorId { return true }
         if item.deleted { return false }
-        guard item.status == .auto || item.status == .confirmed else { return false }
+        // Review-queue items ("new") are still the user's clothes; only archived items are out (relaxed from PLAN §5.6 after real-data testing).
+        guard item.status != .archived else { return false }
         guard item.owned, item.availability == .available else { return false }
         if item.isSeed && realCountInCategory >= 3 { return false }
-        if !item.season.isEmpty && !item.season.contains(inputs.calendarSeason) { return false }
         if (item.category == .swim || item.category == .underwear) && !taxonomy.occasionAllowsSwimUnderwear.contains(ctx.occasion.rawValue) { return false }
         guard taxonomy.formalityAllowed(item.formality, for: ctx.occasion) else { return false }
         if inputs.bodyAvoid.contains(item.subcategory) || (item.fit.map { inputs.bodyAvoid.contains($0) } ?? false) { return false }
@@ -59,8 +59,13 @@ public struct StageA: Sendable {
         return max(-1, min(1, v))
     }
 
+    /// Season tags are advisory: an out-of-season tag costs 0.2 (the temperature rules decide what is wearable).
+    public func seasonPenalty(_ item: WardrobeItem, inputs: StageAInputs) -> Double {
+        !item.season.isEmpty && !item.season.contains(inputs.calendarSeason) ? 0.2 : 0
+    }
+
     public func score(_ item: WardrobeItem, inputs: StageAInputs, anchorHex: String?) -> Double {
-        0.4 * coverageScore(item, inputs: inputs) + 0.3 * paletteTerm(item, inputs: inputs, anchorHex: anchorHex) + 0.3 * feedbackTerm(item, inputs: inputs)
+        0.4 * coverageScore(item, inputs: inputs) + 0.3 * paletteTerm(item, inputs: inputs, anchorHex: anchorHex) + 0.3 * feedbackTerm(item, inputs: inputs) - seasonPenalty(item, inputs: inputs)
     }
 
     public func inSeasonalPalette(_ item: WardrobeItem, inputs: StageAInputs) -> Bool {

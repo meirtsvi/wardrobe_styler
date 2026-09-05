@@ -42,8 +42,8 @@ struct TodayView: View {
                             Spacer()
                         }
                         if let wornMessage { Text(wornMessage).font(.caption).foregroundStyle(.secondary) }
-                    } else if outcome != nil {
-                        ContentUnavailableView("Nothing works today", systemImage: "cloud.rain", description: Text("Add shoes and a top or a dress that suit \(occasion.rawValue), or mark items as back from the laundry."))
+                    } else if let outcome {
+                        ContentUnavailableView("Nothing works today", systemImage: "cloud.rain", description: Text(PlanDiagnostics.explain(candidates: outcome.candidates, records: records, occasion: occasion, window: weather.window)))
                     }
                     if !week.isEmpty {
                         WeekStrip(days: week, records: records, selected: $selectedDay)
@@ -183,4 +183,22 @@ enum RecentOutfits {
 
 extension PlannedOutfit: @retroactive Identifiable {
     public var id: String { slots.map(\.itemId).joined(separator: "+") }
+}
+
+/// Explains an empty plan in terms the user can act on (which slot is missing after the filters, what is in the laundry or unnamed).
+enum PlanDiagnostics {
+    static func explain(candidates: [Candidate], records: [ItemRecord], occasion: Occasion, window: WearWindow) -> String {
+        let has: (Domain.Category) -> Bool = { c in candidates.contains { $0.category == c } }
+        var lines: [String] = []
+        if !has(.shoes) { lines.append("No shoes fit \(occasion.rawValue) today.") }
+        if !has(.onePiece) && !(has(.top) && has(.bottom)) { lines.append("Need a top and a bottom, or a dress, that fit \(occasion.rawValue).") }
+        if lines.isEmpty { lines.append("The pieces don't combine under today's rules (\(Int(window.minFeelsLikeC))–\(Int(window.maxFeelsLikeC)) °C).") }
+        let laundry = records.filter { $0.availability != "available" && $0.deletedAt == nil }.count
+        if laundry > 0 { lines.append("\(laundry) in the laundry or away.") }
+        let unnamed = records.filter { $0.category == "other" && $0.deletedAt == nil }.count
+        if unnamed > 0 { lines.append("\(unnamed) still uncategorised: open them in Wardrobe and pick a type.") }
+        let offFormality = records.filter { r in r.deletedAt == nil && !Taxonomy.shared.formalityAllowed(Formality(rawValue: r.formality) ?? .casual, for: occasion) }.count
+        if offFormality > 0 { lines.append("\(offFormality) excluded by formality for \(occasion.rawValue); check their Formality in the item screen.") }
+        return lines.joined(separator: " ")
+    }
 }

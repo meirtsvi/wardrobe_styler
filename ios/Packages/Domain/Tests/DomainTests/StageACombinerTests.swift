@@ -37,14 +37,19 @@ enum Fixtures {
 @Suite struct StageATests {
     let stageA = StageA()
 
-    @Test func hardFiltersDropUnavailableAndWrongSeason() {
+    @Test func hardFiltersDropUnavailableButKeepReviewQueueAndOffSeason() {
         var closet = Fixtures.closet()
         closet.append(WardrobeItem(id: "laundry-tee", category: .top, subcategory: "tee", availability: .laundry))
         closet.append(WardrobeItem(id: "archived", category: .top, subcategory: "tee", status: .archived))
         closet.append(WardrobeItem(id: "wishlist", category: .top, subcategory: "tee", owned: false))
         closet.append(WardrobeItem(id: "summer-only", category: .top, subcategory: "tee", season: [.summer]))
-        let ids = stageA.run(closet, ctx: Fixtures.ctx(), inputs: Fixtures.inputs()).map(\.id)
-        for bad in ["laundry-tee", "archived", "wishlist", "summer-only"] { #expect(!ids.contains(bad)) }
+        closet.append(WardrobeItem(id: "unreviewed", category: .top, subcategory: "tee", status: .new))
+        let cands = stageA.run(closet, ctx: Fixtures.ctx(), inputs: Fixtures.inputs())
+        let ids = cands.map(\.id)
+        for bad in ["laundry-tee", "archived", "wishlist"] { #expect(!ids.contains(bad)) }
+        #expect(ids.contains("unreviewed"))
+        #expect(ids.contains("summer-only"))
+        #expect(cands.first { $0.id == "summer-only" }!.score < cands.first { $0.id == "unreviewed" }!.score)
     }
 
     @Test func warmDayKeepsLightOuterwearOnly() {

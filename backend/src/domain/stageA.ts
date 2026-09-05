@@ -14,11 +14,11 @@ export function daysBetween(fromISO: string, toISO: string): number {
 export function passesHardFilters(item: WardrobeItem, ctx: PlanContext, realCountInCategory: number): boolean {
   if (item.id === ctx.anchorId) return true;
   if (item.deleted) return false;
-  if (!(item.status === "auto" || item.status === "confirmed")) return false;
+  // Review-queue items ("new") are still the user's clothes; only archived items are out (relaxed from PLAN §5.6 after real-data testing).
+  if (item.status === "archived") return false;
   if (!item.owned) return false;
   if (item.availability !== "available") return false;
   if (item.is_seed && realCountInCategory >= 3) return false;
-  if (item.season.length > 0 && !item.season.includes(ctx.calendarSeason)) return false;
   if ((item.category === "swim" || item.category === "underwear") && !occasionAllowsSwimUnderwear(ctx.occasion)) return false;
   if (!formalityAllowed(ctx.occasion, item.formality)) return false;
   if (ctx.bodyAvoid.includes(item.subcategory) || (item.fit && ctx.bodyAvoid.includes(item.fit))) return false;
@@ -58,8 +58,13 @@ export function feedbackTerm(item: WardrobeItem, ctx: PlanContext): number {
   return Math.max(-1, Math.min(1, v));
 }
 
+/** Season tags are advisory: an out-of-season tag costs 0.2 (the temperature rules decide what is wearable). */
+export function seasonPenalty(item: WardrobeItem, ctx: PlanContext): number {
+  return item.season.length > 0 && !item.season.includes(ctx.calendarSeason) ? 0.2 : 0;
+}
+
 export function scoreItem(item: WardrobeItem, ctx: PlanContext, anchorHex: string | undefined): number {
-  return 0.4 * coverageScore(item, ctx) + 0.3 * paletteTerm(item, ctx, anchorHex) + 0.3 * feedbackTerm(item, ctx);
+  return 0.4 * coverageScore(item, ctx) + 0.3 * paletteTerm(item, ctx, anchorHex) + 0.3 * feedbackTerm(item, ctx) - seasonPenalty(item, ctx);
 }
 
 export function inSeasonalPalette(item: WardrobeItem, ctx: PlanContext): boolean {
