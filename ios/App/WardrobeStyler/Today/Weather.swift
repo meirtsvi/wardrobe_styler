@@ -45,8 +45,14 @@ struct WeatherControls: View {
     private func fetch() async {
         fetching = true
         defer { fetching = false }
+        let loc: CLLocation
         do {
-            let loc = try await LocationOnce().location()
+            loc = try await LocationOnce().location()
+        } catch {
+            self.error = "Location failed: \(error.localizedDescription). Allow location for Wardrobe Styler in Settings, or keep the sliders."
+            return
+        }
+        do {
             let window = try await WearWindowProvider.window(at: loc)
             state.minC = window.minFeelsLikeC.rounded(); state.maxC = window.maxFeelsLikeC.rounded(); state.precip = window.precipProbMax
             state.city = await WearWindowProvider.city(at: loc)
@@ -54,7 +60,8 @@ struct WeatherControls: View {
             state.source = "weatherkit"
             error = nil
         } catch {
-            self.error = "WeatherKit unavailable (needs the capability + a signed build): \(error.localizedDescription)"
+            let ns = error as NSError
+            self.error = "WeatherKit refused (\(ns.domain) \(ns.code)): \(ns.localizedDescription). The app id needs the WeatherKit service enabled and a team-signed build; new enablement takes up to 30 minutes."
         }
     }
 }
