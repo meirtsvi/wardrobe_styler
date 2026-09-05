@@ -101,3 +101,19 @@ public struct TemperatureRules: Decodable, Sendable {
         return w.minFeelsLikeC >= r.minFeelsLikeGteC! && w.precipProbMax < r.precipProbMaxLtPct!
     }
 }
+
+public extension TemperatureRules {
+    /// The rule table as prose for the on-device Stage B instructions, so prompt and validator share one source (mirrors renderTemperatureRulesText()).
+    var renderedText: String {
+        let bandText = bands.map { b -> String in
+            if b.minC == nil, let max = b.maxC { return "\(b.name) below \(Int(max)) °C" }
+            if b.maxC == nil, let min = b.minC { return "\(b.name) above \(Int(min)) °C" }
+            return "\(b.name) \(Int(b.minC ?? 0))–\(Int(b.maxC ?? 0)) °C"
+        }.joined(separator: ", ")
+        let lines = rules.keys.sorted().map { "- \(rules[$0]!.text) [\($0)]" }
+        return ([
+            "Temperature bands (feels-like): \(bandText).",
+            "Layering rules (evaluate required/allowed against the minimum feels-like of the wear window and forbidden against the maximum):",
+        ] + lines + ["When the wear window spans two bands, say how the layers come off during the day in layering_note."]).joined(separator: "\n")
+    }
+}

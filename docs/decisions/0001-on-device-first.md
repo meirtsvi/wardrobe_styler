@@ -21,6 +21,10 @@ Implement without further sign-off; run as much AI as possible on the device; us
 | Stylist chat (v1.1) | Foundation Models with wardrobe tools | Gemini for image-bearing turns and unsupported locales |
 | Virtual try-on, twin, clean-up, Outfit Check on photos | — | Gemini image models via the gateway; the only metered features |
 
+## What the device classifier can and cannot see (measured 2026-09-05 on macOS 26.6, Vision `ClassifyImageRequest`, 1,303 identifiers)
+
+Clothing-related identifiers present: `clothing`, `footwear`, `shoes`, `sneaker`, `boot`, `sandal`, `high_heel`, `loafer`, `jeans`, `hoodie`, `polo`, `jacket`, `suit`, `wedding_dress`, `swimsuit`, `wetsuit`, `bag`, `backpack`, `hat`, `baseball_hat`, `cowboy_hat`, `sunhat`, `scarf`, `necktie`, `bowtie`, `glove`, `sock`, `watch`, `sunglasses`, `eyeglasses`. Absent: dress, shirt, blouse, skirt, trousers, sweater, coat, necklace, earrings, belt. Consequence: the device settles category for shoes, bags, hats, jeans, hoodies, jackets and small accessories; for tops, dresses, skirts, knitwear and jewellery the device produces the cutout, colour and feature print, and Gemini Lite names the garment. Foundation Models is text-only and cannot replace that call.
+
 ## Consequences
 
 - **The wardrobe is canonical on the device (SwiftData).** The server no longer needs to read the wardrobe to plan, so Firestore holds only accounts, credits, jobs, Looks and consent. Cloud backup/sync of the wardrobe is a later feature; export ZIP stays a v1.1 commitment.

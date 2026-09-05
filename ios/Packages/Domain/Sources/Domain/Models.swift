@@ -70,6 +70,9 @@ public struct PlanResponse: Codable, Equatable, Sendable {
     public var outfits: [PlannedOutfit]
     public var anchorHonored: Bool
     public var anchorReason: String?
+    public init(outfits: [PlannedOutfit], anchorHonored: Bool, anchorReason: String?) {
+        self.outfits = outfits; self.anchorHonored = anchorHonored; self.anchorReason = anchorReason
+    }
     enum CodingKeys: String, CodingKey { case outfits, anchorHonored = "anchor_honored", anchorReason = "anchor_reason" }
 }
 
