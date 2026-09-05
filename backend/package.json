@@ -3,16 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-wardrobe \"vitest run --config vitest.emu.config.ts\"",
+    "emulators": "firebase emulators:start --project demo-wardrobe"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
     "typescript": "^5.9.0",
     "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "@fastify/type-provider-json-schema-to-ts": "^5.0.0",
+    "fastify": "^5.12.3",
+    "firebase-admin": "^14.3.0"
   }
 }

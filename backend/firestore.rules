@@ -1,0 +1,113 @@
+rules_version = '2';
+
+// PLAN §7.5 "Security rules": reads/writes only where resource.uid == auth.uid; credits, jobs, ledger, usage, subscriptions,
+// batches, reports, consent_log, price_table and AI-derived item fields are server-write-only; seeds and weather are read-only.
+// App Check enforcement is configured in the Firebase console (not expressible here).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function ownsResource() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function ownsIncoming() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+
+    // Fields the client may write on an item (PLAN §6 "Data layer": client owns user edits; server owns AI-derived fields).
+    function itemClientFields() {
+      return ['category', 'subcategory', 'layer_role', 'colors', 'color_source', 'pattern', 'material', 'fit', 'length', 'warmth',
+              'season', 'formality', 'occasions', 'status', 'owned', 'quantity', 'availability', 'favorite', 'updated_at', 'deleted_at',
+              'wear_count', 'last_worn_on', 'closet_id', 'caption'];
+    }
+    function serverOnlyItemFields() {
+      return ['embedding', 'dhash', 'field_confidences', 'brand_guess', 'brand_confidence', 'brand_source', 'attrs_prompt_version',
+              'duplicate_of', 'source', 'seed_ref', 'worn_by_person', 'last_suggested_at', 'uid', 'created_at'];
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      // Client may edit locale/tz/last_known_geo/consent-adjacent flags; balances, plan, abuse and grant stages are server-only.
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+             ['plan', 'grant_balance', 'purchased_balance', 'daily_credits_used', 'daily_reset_at', 'signup_grant_stage',
+              'abuse_score', 'flags', 'safety_blocks_30d', 'tryon_locked_until', 'merged_from_uid', 'apple_sub', 'google_sub', 'deleted_at']);
+      allow create, delete: if false;
+
+      match /profile/{doc} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    match /items/{id} {
+      allow read: if ownsResource();
+      allow create: if ownsIncoming()
+        && request.resource.data.source in ['manual', 'share_ext']
+        && request.resource.data.status != 'auto';
+      allow update: if ownsResource() && ownsIncoming()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOnlyItemFields())
+        && request.resource.data.status != 'auto';
+      allow delete: if false; // soft delete via deleted_at; purge is a server job
+
+      match /images/{k} {
+        allow read: if isOwner(get(/databases/$(database)/documents/items/$(id)).data.uid);
+        allow write: if false;
+      }
+    }
+
+    match /seed_items/{id} { allow read: if signedIn(); allow write: if false; }
+    match /weather_snapshots/{cell}/{hour} { allow read: if signedIn(); allow write: if false; }
+    match /price_table/{v} { allow read: if false; allow write: if false; }
+
+    match /outfits/{id} {
+      allow read: if ownsResource();
+      allow create: if ownsIncoming() && request.resource.data.source in ['builder'];
+      allow update: if ownsResource() && ownsIncoming()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rating', 'layout', 'preview_image_id']);
+      allow delete: if false;
+    }
+
+    match /daily_plans/{uid}/{date} {
+      allow read: if isOwner(uid);
+      allow update: if isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shown_at', 'action', 'pinned']);
+      allow create, delete: if false;
+    }
+    match /week_plans/{uid}/{week} { allow read: if isOwner(uid); allow write: if false; }
+
+    match /calendar_entries/{id} { allow read: if ownsResource(); allow create, update: if ownsIncoming(); allow delete: if ownsResource(); }
+    match /wear_events/{id} { allow read: if ownsResource(); allow create: if ownsIncoming(); allow update, delete: if false; }
+    match /feedback_events/{id} {
+      allow read: if ownsResource();
+      allow create: if ownsIncoming();
+      allow update: if ownsResource() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['retracted']);
+      allow delete: if false;
+    }
+    match /notification_prefs/{uid} { allow read, write: if isOwner(uid); }
+    match /wishlist/{id} { allow read: if ownsResource(); allow create, update: if ownsIncoming(); allow delete: if ownsResource(); }
+    match /packing_lists/{id} { allow read: if ownsResource(); allow create, update: if ownsIncoming(); allow delete: if ownsResource(); }
+    match /lookbooks/{id} { allow read: if ownsResource(); allow create, update: if ownsIncoming(); allow delete: if ownsResource(); }
+
+    // Read-only for the owner; every write goes through the gateway.
+    match /looks/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /jobs/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /batches/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /credit_ledger/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /subscriptions/{uid} { allow read: if isOwner(uid); allow write: if false; }
+    match /chat_sessions/{id} {
+      allow read: if ownsResource();
+      allow write: if false;
+      match /messages/{m} { allow read: if isOwner(get(/databases/$(database)/documents/chat_sessions/$(id)).data.uid); allow write: if false; }
+    }
+    match /outfit_checks/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /battles/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /finder_sessions/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /purchase_checks/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /reports/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /support_tickets/{id} { allow read: if ownsResource(); allow write: if false; }
+    match /consent_log/{id} { allow read, write: if false; }
+    match /usage_log/{id} { allow read, write: if false; }
+    match /eval_samples/{id} { allow read, write: if false; }
+    match /prompts/{name}/versions/{n} { allow read, write: if false; }
+    match /referrals/{code} { allow read: if signedIn() && resource.data.owner_uid == request.auth.uid; allow write: if false; }
+    match /import_jobs/{id} { allow read: if ownsResource(); allow write: if false; }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

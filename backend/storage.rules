@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// PLAN §7.4 storage layout. Clients upload raw photos + masks under their own uid and read their derived cutouts, Looks and people
+// images; seeds are public-read; tmp/, imports/ and exports/ are server-only (exports are handed out as 15-minute signed URLs).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    match /raw/{uid}/{file} {
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid)
+        && request.resource.size < 6 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png)');
+    }
+    match /derived/{uid}/{itemId}/{file} { allow read: if isOwner(uid); allow write: if false; }
+    match /people/{uid}/{file} { allow read: if isOwner(uid); allow write: if false; }
+    match /looks/{uid}/{file} { allow read: if isOwner(uid); allow write: if false; }
+    match /seeds/{presentation}/{file} { allow read: if request.auth != null; allow write: if false; }
+    match /tmp/{path=**} { allow read, write: if false; }
+    match /imports/{uid}/{file} {
+      allow read: if false;
+      allow write: if isOwner(uid) && request.resource.size < 200 * 1024 * 1024;
+    }
+    match /exports/{path=**} { allow read, write: if false; }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
