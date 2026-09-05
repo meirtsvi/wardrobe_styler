@@ -43,4 +43,6 @@ The app runs fully offline (Vision digitisation, Foundation Models planner when 
 
 ## Status
 
-Works end to end on device: digitise → wardrobe → Today card. Gateway endpoints are implemented and unit-tested against a fake Gemini; they have not yet been run against the real API (needs the key in `backend/.env`). Not built: week strip, widget, wear log, export.
+Verified 2026-09-05 with the owner's key: all Gemini paths work against the real API (planning, garment naming, image generation, try-on), the quick tunnel serves the gateway with the token, and the app's ingest → Gemini naming path runs end to end in the iOS 26 simulator. Vision subject lifting does not run in the simulator (the whole photo is kept as one garment there); real cutouts need an iPhone. Not built: week strip, widget, wear log, export, cutout clean-up UI.
+
+Debug launch arguments: `--seed-demo` (fixture closet), `--ingest-file /abs/path.png` (repeatable), `--tab wardrobe|me`. Scheme environment `GATEWAY_URL` / `GATEWAY_TOKEN` override the Me tab settings.

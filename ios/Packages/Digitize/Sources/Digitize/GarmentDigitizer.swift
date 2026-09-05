@@ -19,6 +19,8 @@ public struct DetectedGarment: Sendable {
     public var garmentScore: Float
     public var featurePrint: FeaturePrint?
     public var needsCloudAttributes: Bool
+    /// Set when the whole image was kept because Vision could not segment it.
+    public var fallbackReason: String? = nil
 }
 
 public struct FeaturePrint: Sendable {
@@ -49,7 +51,15 @@ public struct GarmentDigitizer: Sendable {
 
     public func digitize(_ image: CGImage) async throws -> [DetectedGarment] {
         let handler = ImageRequestHandler(image)
-        guard let masks = try await GenerateForegroundInstanceMaskRequest().perform(on: image) else { return [] }
+        let masks: InstanceMaskObservation?
+        do {
+            masks = try await GenerateForegroundInstanceMaskRequest().perform(on: image)
+        } catch {
+            // Vision ML requests are unavailable on the simulator ("Could not create inference context") and can fail on odd inputs.
+            // PLAN §5.1 step 4: keep the whole image as one garment rather than lose the photo.
+            return [try await wholeImageFallback(image, reason: String(describing: error))]
+        }
+        guard let masks else { return [try await wholeImageFallback(image, reason: "no instances")] }
         var results: [DetectedGarment] = []
 
         for (i, instance) in masks.allInstances.sorted().prefix(options.maxInstances).enumerated() {
@@ -66,7 +76,7 @@ public struct GarmentDigitizer: Sendable {
             let cutout = try Self.composite(onWhite: maskedCG, longEdge: options.cutoutLongEdge)
             let thumb = try Self.composite(onWhite: maskedCG, longEdge: options.thumbnailLongEdge)
 
-            let labels = try await Self.classify(cutout)
+            let labels = (try? await Self.classify(cutout)) ?? []
             let guess = LabelMapping.guess(from: labels)
             let garmentScore = LabelMapping.looksLikeGarment(labels)
             let print = try? await Self.featurePrint(cutout)
@@ -77,7 +87,27 @@ public struct GarmentDigitizer: Sendable {
                 classifierLabels: labels, categoryGuess: guess, garmentScore: garmentScore, featurePrint: print,
                 needsCloudAttributes: !settled || coverage < options.minMaskCoverage))
         }
+        if results.isEmpty { return [try await wholeImageFallback(image, reason: "all instances filtered")] }
         return results
+    }
+
+    /// The whole photo as one garment: near-white pixels are treated as background for the palette; classifier and feature print are best-effort.
+    func wholeImageFallback(_ image: CGImage, reason: String) async throws -> DetectedGarment {
+        guard var rgba = Palette.rgba(from: image) else { throw DigitizeError.noPixels }
+        var i = 0
+        while i + 3 < rgba.count {
+            if rgba[i] > 238 && rgba[i + 1] > 238 && rgba[i + 2] > 238 { rgba[i + 3] = 0 }
+            i += 4
+        }
+        let cutout = try Self.composite(onWhite: image, longEdge: options.cutoutLongEdge)
+        let thumb = try Self.composite(onWhite: image, longEdge: options.thumbnailLongEdge)
+        let labels = (try? await Self.classify(cutout)) ?? []
+        let guess = LabelMapping.guess(from: labels)
+        return DetectedGarment(
+            index: 0, box: CGRect(x: 0, y: 0, width: 1, height: 1), cutout: cutout, thumbnail: thumb,
+            maskCoverage: Self.coverage(rgba: rgba), palette: Palette.extract(rgba: rgba), classifierLabels: labels,
+            categoryGuess: guess, garmentScore: LabelMapping.looksLikeGarment(labels), featurePrint: try? await Self.featurePrint(cutout),
+            needsCloudAttributes: true, fallbackReason: reason)
     }
 
     // MARK: - helpers

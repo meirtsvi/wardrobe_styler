@@ -65,55 +65,14 @@ struct WardrobeView: View {
     private func ingest(_ batch: [PhotosPickerItem]) async {
         progress = (0, batch.count)
         defer { progress = nil }
+        let ingestor = Ingestor(app: app, context: context)
         for (i, pick) in batch.enumerated() {
             do {
-                guard let data = try await pick.loadTransferable(type: Data.self), let ui = UIImage(data: data), let cg = ImagePrep.normalised(ui, longEdge: 1536) else { continue }
-                let garments = try await app.digitizer.digitize(cg)
-                for g in garments where g.garmentScore > 0.1 || g.categoryGuess != nil || garments.count == 1 {
-                    let primary = g.palette.first
-                    let record = ItemRecord(category: g.categoryGuess?.category ?? .other,
-                                            subcategory: g.categoryGuess?.subcategory ?? (g.categoryGuess?.category.rawValue ?? "other"),
-                                            colorHex: primary?.hex ?? "#8C8C8C", colorName: primary?.name ?? "grey")
-                    record.secondaryHex = g.palette.dropFirst().map(\.hex)
-                    record.categoryConfidence = Double(g.categoryGuess?.confidence ?? 0)
-                    record.maskCoverage = g.maskCoverage
-                    record.cutoutJPEG = ImagePrep.jpeg(g.cutout, quality: 0.85)
-                    record.thumbnailJPEG = ImagePrep.jpeg(g.thumbnail, quality: 0.8)
-                    record.attributesSource = g.needsCloudAttributes ? "device_partial" : "device"
-                    if g.needsCloudAttributes, let gateway = app.gateway, let cutout = record.cutoutJPEG {
-                        await nameWithGemini(record, gateway: gateway, cutout: cutout, label: g.categoryGuess?.label)
-                    }
-                    // PLAN §4.3: high-confidence items commit automatically; doubtful ones wait in the review queue.
-                    record.status = record.categoryConfidence >= 0.8 && record.attributesSource != "device_partial" ? "auto" : "new"
-                    context.insert(record)
-                }
-                try context.save()
+                if let data = try await pick.loadTransferable(type: Data.self), let ui = UIImage(data: data) { try await ingestor.ingest(ui) }
             } catch {
-                lastError = String(describing: error)
+                lastError = error.localizedDescription
             }
             progress = (i + 1, batch.count)
-        }
-    }
-}
-
-extension WardrobeView {
-    /// ADR 0001: Gemini names garments the device classifier cannot; colour stays the measured pixels.
-    func nameWithGemini(_ record: ItemRecord, gateway: GatewayClient, cutout: Data, label: String?) async {
-        do {
-            let r = try await gateway.attributes(cutout: InlineImage(mimeType: "image/jpeg", data: cutout), primaryHex: record.colorHex, primaryName: record.colorName,
-                                                 secondaryHex: record.secondaryHex, detectionLabel: label)
-            let a = r.attributes
-            if let cat = Domain.Category(rawValue: a.category) {
-                record.category = cat.rawValue
-                record.subcategory = (Taxonomy.shared.subcategories[cat.rawValue] ?? []).contains(a.subcategory) ? a.subcategory : (Taxonomy.shared.subcategories[cat.rawValue]?.first ?? "other")
-                record.layerRole = a.layer_role ?? Taxonomy.shared.defaultLayerRole(category: cat, subcategory: record.subcategory)?.rawValue
-            }
-            record.pattern = a.pattern; record.material = a.material; record.fit = a.fit; record.warmth = a.warmth
-            record.season = a.season; record.formality = a.formality; record.occasions = a.occasions; record.caption = a.caption
-            record.categoryConfidence = a.field_confidences["category"] ?? 0.7
-            record.attributesSource = "gemini"
-        } catch {
-            lastError = "Gemini naming failed: \(error.localizedDescription)"
         }
     }
 }
