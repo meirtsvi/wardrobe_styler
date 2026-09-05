@@ -1,0 +1,30 @@
+{
+  "$comment": "PLAN.md §5.4 (40-name colour palette for nearest-name lookup) and §5.6 (calendar-season palettes for the Stage A harmony term). Hex values are sRGB.",
+  "version": 1,
+  "named": {
+    "black": "#111111", "white": "#F7F7F5", "off_white": "#EFEBE3", "cream": "#F3E9D2", "ivory": "#FFFFF0",
+    "grey": "#8C8C8C", "light_grey": "#C9C9C9", "charcoal": "#3A3A3A", "silver": "#BFC4C9",
+    "navy": "#1F2A44", "blue": "#2F5DA8", "light_blue": "#9DBCE3", "sky_blue": "#7FB3E6", "teal": "#2A7F7F", "turquoise": "#40C4C4",
+    "green": "#3B7A3B", "olive": "#6B6B2E", "sage": "#9CAF88", "forest": "#1F4D2B", "mint": "#A8E6CF", "lime": "#B5D33D",
+    "yellow": "#E8C547", "mustard": "#D4A017", "gold": "#C9A227",
+    "orange": "#E07A2E", "rust": "#A8442A", "coral": "#F27A6C", "peach": "#F5C6A0",
+    "red": "#C42B2B", "burgundy": "#6E1E2E", "maroon": "#7A2E3E", "pink": "#E7A6C1", "hot_pink": "#E0408A", "blush": "#F2C7C9",
+    "purple": "#6B3FA0", "lavender": "#B8A9D9", "plum": "#5C2A5C",
+    "brown": "#6B4A2B", "tan": "#C8A97E", "camel": "#C19A6B", "beige": "#D9CBB0", "khaki": "#B7A97A"
+  },
+  "neutrals": ["black", "white", "off_white", "cream", "ivory", "grey", "light_grey", "charcoal", "silver", "navy", "beige", "tan", "camel", "khaki", "brown"],
+  "seasonal": {
+    "spring": ["#9DBCE3", "#A8E6CF", "#F5C6A0", "#F2C7C9", "#E8C547", "#EFEBE3", "#9CAF88"],
+    "summer": ["#F7F7F5", "#7FB3E6", "#40C4C4", "#F27A6C", "#B8A9D9", "#F3E9D2", "#2F5DA8"],
+    "autumn": ["#A8442A", "#D4A017", "#6B6B2E", "#C19A6B", "#6E1E2E", "#1F4D2B", "#6B4A2B"],
+    "winter": ["#111111", "#1F2A44", "#6E1E2E", "#3A3A3A", "#F7F7F5", "#5C2A5C", "#C42B2B"]
+  },
+  "harmony": {
+    "neutral_chroma_max": 14,
+    "monochrome_hue_deg": 15,
+    "analogous_hue_deg": 45,
+    "complementary_min_deg": 130,
+    "complementary_max_deg": 230,
+    "scores": { "monochrome": 1.0, "analogous": 0.9, "neutral": 0.85, "complementary": 0.8, "other": 0.4 }
+  }
+}

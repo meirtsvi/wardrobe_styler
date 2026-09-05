@@ -1,0 +1,82 @@
+{
+  "$comment": "PLAN.md §5.3 attribute schema and §5.6 slot/occasion rules. Source of truth for the Domain enums (Swift) and the backend types (TypeScript). Subcategory lists beyond the examples given in the plan (jewelry, accessory) are a v1 working set; extend here, never inline.",
+  "version": 1,
+  "categories": [
+    "one_piece", "top", "mid_layer", "outerwear", "bottom", "shoes",
+    "bag", "jewelry", "accessory", "swim", "underwear", "other"
+  ],
+  "subcategories": {
+    "one_piece": ["dress", "jumpsuit", "romper", "overall"],
+    "top": ["tee", "tank", "camisole", "shirt", "blouse", "polo", "sweater", "hoodie", "sweatshirt", "bodysuit"],
+    "mid_layer": ["cardigan", "overshirt", "vest", "blazer_light"],
+    "outerwear": ["coat", "trench", "parka", "puffer", "blazer", "leather_jacket", "denim_jacket", "bomber", "raincoat", "windbreaker"],
+    "bottom": ["jeans", "trousers", "chinos", "shorts", "skirt", "leggings", "joggers"],
+    "shoes": ["sneakers", "boots", "loafers", "heels", "flats", "sandals", "flip_flops", "slides", "mules_open", "dress_shoes", "athletic"],
+    "bag": ["tote", "crossbody", "shoulder", "backpack", "clutch", "belt_bag"],
+    "jewelry": ["earrings", "necklace", "bracelet", "ring", "watch"],
+    "accessory": ["belt", "scarf", "hat", "sunglasses", "tie", "gloves", "socks"],
+    "swim": ["swimsuit", "bikini", "swim_shorts"],
+    "underwear": ["bra", "briefs", "undershirt"],
+    "other": ["other"]
+  },
+  "layer_roles": ["base", "single", "mid", "outer"],
+  "top_layer_role_defaults": {
+    "tank": "base", "tee": "base", "camisole": "base", "bodysuit": "base",
+    "shirt": "single", "blouse": "single", "polo": "single", "sweater": "single", "hoodie": "single", "sweatshirt": "single",
+    "cardigan": "mid", "overshirt": "mid", "vest": "mid", "blazer_light": "mid"
+  },
+  "paired_subcategories": ["sneakers", "boots", "loafers", "heels", "flats", "sandals", "flip_flops", "slides", "mules_open", "dress_shoes", "athletic", "socks", "gloves", "earrings"],
+  "slots": ["one_piece", "top", "base_layer", "mid_layer", "outerwear", "bottom", "shoes", "bag", "jewelry", "accessory"],
+  "slot_max_items": { "jewelry": 3, "accessory": 2 },
+  "slot_categories": {
+    "one_piece": ["one_piece"],
+    "top": ["top"],
+    "base_layer": ["top"],
+    "mid_layer": ["mid_layer"],
+    "outerwear": ["outerwear"],
+    "bottom": ["bottom"],
+    "shoes": ["shoes"],
+    "bag": ["bag"],
+    "jewelry": ["jewelry"],
+    "accessory": ["accessory"]
+  },
+  "patterns": ["solid", "stripe", "check", "floral", "graphic", "animal", "dot", "abstract", "other"],
+  "materials": ["cotton", "denim", "wool", "knit", "leather", "silk", "linen", "synthetic", "unknown"],
+  "fits": ["slim", "regular", "relaxed", "oversized"],
+  "warmth": ["light", "mid", "warm", "heavy"],
+  "seasons": ["spring", "summer", "autumn", "winter"],
+  "formality": ["casual", "smart_casual", "business", "formal", "athletic"],
+  "formality_order": ["casual", "smart_casual", "business", "formal"],
+  "occasions": ["work", "casual", "date", "event", "travel", "sport", "beach", "gym", "formal", "evening"],
+  "occasion_formality": {
+    "work": ["business", "smart_casual"],
+    "casual": ["casual", "smart_casual"],
+    "date": ["smart_casual", "formal"],
+    "event": ["formal"],
+    "travel": ["casual", "smart_casual"],
+    "sport": ["athletic"],
+    "beach": ["casual"],
+    "gym": ["athletic"],
+    "formal": ["formal"],
+    "evening": ["smart_casual", "formal"]
+  },
+  "occasion_allows_swim_underwear": ["beach", "gym"],
+  "accessory_count": {
+    "none": { "jewelry": 0, "accessory": 0 },
+    "some": { "jewelry": 2, "accessory": 1 },
+    "many": { "jewelry": 3, "accessory": 2 }
+  },
+  "item_status": ["new", "auto", "confirmed", "archived"],
+  "availability_state": ["available", "laundry", "repair", "packed", "lent"],
+  "color_source": ["pixels", "llm", "user"],
+  "stage_a_top_n": {
+    "top": 8, "top_min_base_capable": 2, "bottom": 8, "one_piece": 4, "mid_layer": 4,
+    "outerwear": 4, "shoes": 6, "bag": 3, "jewelry": 4, "jewelry_min_subcategories": 2, "accessory": 4
+  },
+  "history": {
+    "no_repeat_days": 14,
+    "max_reused_from_yesterday": 2,
+    "coverage_full_days": 14,
+    "subcategory_penalty_days": 3
+  }
+}
